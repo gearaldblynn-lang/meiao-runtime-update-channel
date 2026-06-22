@@ -181,7 +181,7 @@ function Verify-PayloadManifest {
     }
   }
 
-  $files = @($Manifest.files | Sort-Object path)
+  $files = @($Manifest.files)
   $hashInput = [System.Text.StringBuilder]::new()
   foreach ($file in $files) {
     $relative = Normalize-RelativePath ([string]$file.path)
