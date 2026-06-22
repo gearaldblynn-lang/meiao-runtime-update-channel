@@ -1,6 +1,6 @@
 {
-    "version":  "20260622-175502",
-    "createdAt":  "2026-06-22T09:55:09.1955794Z",
+    "version":  "20260622-175645",
+    "createdAt":  "2026-06-22T09:56:52.7506175Z",
     "channel":  "git-update",
     "payloadMode":  "partial",
     "repository":  "https://github.com/gearaldblynn-lang/meiao-runtime-update-channel.git",
@@ -43,7 +43,7 @@
                              "integrations/capcut_mate/upstream"
                          ],
     "fileCount":  80,
-    "payloadHash":  "752f8db97b251867e4ce6e4e61db73715b81aa32be538a4042a892e847258b4a",
+    "payloadHash":  "ead0cbf328e979a7a7b6f12c062678f2189cad4e3836dd16ce9106053513f68e",
     "files":  [
                   {
                       "path":  "meiao_runtime/flow_readiness_runtime.py",
@@ -257,8 +257,8 @@
                   },
                   {
                       "path":  "update-from-git.ps1",
-                      "sha256":  "5d892fb5e0236d357ca77583c9a3607811a8b92dd4585c889d82a03e715b021a",
-                      "size":  10292
+                      "sha256":  "84363217ae9f6e34b2229505f9a516c352301f67c275d53bbdcec8fd611d9c5e",
+                      "size":  10356
                   },
                   {
                       "path":  "start-meiao.bat",

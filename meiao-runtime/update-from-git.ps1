@@ -159,7 +159,8 @@ function Invoke-Git {
 
 function Read-JsonFile {
   param([string]$Path)
-  return (Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json)
+  $content = [System.IO.File]::ReadAllText($Path, [System.Text.UTF8Encoding]::new($false))
+  return ($content | ConvertFrom-Json)
 }
 
 function Verify-PayloadManifest {
