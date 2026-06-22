@@ -1,0 +1,10 @@
+storage/
+config.local.json
+logs/
+drafts/
+media/
+integrations/upstream/
+*.log
+runtime.pid
+*.pid
+.tmp/
