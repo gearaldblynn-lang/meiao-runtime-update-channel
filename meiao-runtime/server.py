@@ -22856,6 +22856,7 @@ def merge_vector_store_items(updated_items: dict[str, dict], *, model: str | Non
 VECTOR_TAG_TASK_THREADS: dict[str, threading.Thread] = {}
 VECTOR_TAG_TASK_THREADS_LOCK = threading.Lock()
 VECTOR_TAG_TASK_CONCURRENCY = 20
+VECTOR_TAG_TASK_RUNNING_STALE_SECONDS = 30 * 60
 
 
 def read_vector_tag_task_store() -> dict:
@@ -22915,6 +22916,82 @@ def summarize_vector_tag_task(task: dict) -> dict:
     return task
 
 
+def parse_vector_task_datetime(value: object) -> datetime | None:
+    try:
+        text = str(value or "").strip()
+        return datetime.fromisoformat(text) if text else None
+    except Exception:
+        return None
+
+
+def is_stale_vector_tag_running_item(item: dict, now: datetime) -> bool:
+    if not isinstance(item, dict) or item.get("status") != "running":
+        return False
+    marker = parse_vector_task_datetime(item.get("workerHeartbeatAt")) or parse_vector_task_datetime(item.get("startedAt"))
+    if marker is None:
+        return False
+    return (now - marker).total_seconds() >= VECTOR_TAG_TASK_RUNNING_STALE_SECONDS
+
+
+def vector_tag_submit_media_urls(raw_items: list[dict]) -> list[str]:
+    urls: list[str] = []
+    for raw in raw_items:
+        if not isinstance(raw, dict):
+            continue
+        segment = raw.get("segment") if isinstance(raw.get("segment"), dict) else {}
+        url = str(segment.get("url") or "").strip()
+        if url:
+            urls.append(url)
+    return urls
+
+
+def vector_tag_submit_requires_file_upload(raw_items: list[dict], profiles: list[dict]) -> bool:
+    urls = vector_tag_submit_media_urls(raw_items)
+    if not urls:
+        return False
+    if any(uses_kie_unified_media_envelope(profile) for profile in profiles if isinstance(profile, dict)):
+        return True
+    for url in urls:
+        if url.startswith("data:") or url.startswith("/media/"):
+            return True
+        parsed = urlparse(url)
+        if parsed.scheme in {"http", "https"} and parsed.hostname in {"127.0.0.1", "localhost"} and parsed.path.startswith("/media/"):
+            return True
+    return False
+
+
+def validate_vector_tag_task_submit_config(raw_items: list[dict]) -> dict | None:
+    if not str(get_ark_config().get("api_key") or "").strip():
+        return {
+            "error": "未配置豆包 ARK_API_KEY，无法执行分镜向量化。请先在设置里配置 Ark/Doubao 向量化密钥。",
+            "code": "VECTOR_CONFIG_MISSING",
+            "action": "SET_ARK_API_KEY",
+        }
+    config = get_analysis_model_config()
+    content: list[dict] = [{"type": "text", "text": "preflight"}]
+    if vector_tag_submit_media_urls(raw_items):
+        content.append({"type": "video_url", "video_url": {"url": "https://example.com/preflight.mp4"}})
+    messages = [{"role": "user", "content": content}]
+    profiles = select_analysis_profiles_for_request(config, "", messages)
+    if not profiles and isinstance(config.get("active_model"), dict):
+        profiles = [config["active_model"]]
+    profiles = [profile for profile in profiles if isinstance(profile, dict)]
+    usable_profiles = [profile for profile in profiles if str(profile.get("api_key") or "").strip()]
+    if not usable_profiles:
+        return {
+            "error": "未配置可用的分析模型 API Key，无法补打细标签。请先在设置里配置 KIE/Gemini 或可处理视频的分析模型。",
+            "code": "ANALYSIS_CONFIG_MISSING",
+            "action": "CONFIGURE_ANALYSIS_MODEL",
+        }
+    if vector_tag_submit_requires_file_upload(raw_items, usable_profiles) and not str(get_file_upload_config().get("api_key") or "").strip():
+        return {
+            "error": "本地视频补打细标签需要先上传到图床，但未配置图床 API Key。请配置 KIE/file_upload 密钥后再提交。",
+            "code": "FILE_UPLOAD_CONFIG_MISSING",
+            "action": "CONFIGURE_FILE_UPLOAD",
+        }
+    return None
+
+
 def vector_tag_task_summary_view(task: dict) -> dict:
     # 列表页只需任务级状态/计数 + 每条 item 的轻量状态，剥离重型字段（item.segment、result.vectorItem 内嵌向量可达 90KB/条）。
     light_items = []
@@ -22969,6 +23046,34 @@ def is_unconfirmed_analysis_transport_error(error: str) -> bool:
             "temporarily unavailable",
         )
     )
+
+
+def is_analysis_configuration_error(error: str) -> bool:
+    text = str(error or "").lower()
+    return any(
+        marker in text
+        for marker in (
+            "unauthorized",
+            "401",
+            "invalid api key",
+            "api key",
+            "authorization",
+            "authentication",
+            "鉴权",
+            "未配置",
+            "analysis_config_missing",
+            "analysis_auth_failed",
+        )
+    )
+
+
+def vector_tag_configuration_error_message(error: str) -> str:
+    text = str(error or "").strip()
+    if "unauthorized" in text.lower() or "401" in text:
+        return "分析模型鉴权失败（401 Unauthorized）。请检查 KIE/Gemini API Key 是否正确、是否过期，并确认设置里的 KIE 统一密钥没有填成 Ark/Doubao 密钥。"
+    if text:
+        return text
+    return "分析模型配置错误，已停止继续派发补打细标签任务。"
 
 
 def process_vector_tag_segment(project_id: str, media_id: str, script_id: str, segment: dict) -> dict:
@@ -23088,6 +23193,8 @@ def process_vector_tag_segment(project_id: str, media_id: str, script_id: str, s
 
 def run_vector_tag_task(job_id: str) -> None:
     append_debug_log("vector.tag_task.started", {"jobId": job_id})
+    stop_dispatch_event = threading.Event()
+    stop_dispatch_error = {"message": ""}
 
     def worker() -> None:
         while True:
@@ -23095,16 +23202,24 @@ def run_vector_tag_task(job_id: str) -> None:
 
             def claim(task: dict) -> None:
                 nonlocal claimed
-                if task.get("cancelRequested"):
+                if task.get("cancelRequested") or stop_dispatch_event.is_set():
+                    stop_message = stop_dispatch_error.get("message") or "补打细标签任务已停止派发。"
                     for item in task.get("items") or []:
                         if isinstance(item, dict) and item.get("status") == "queued":
-                            item["status"] = "canceled"
+                            if stop_dispatch_event.is_set():
+                                item["status"] = "failed"
+                                item["finishedAt"] = datetime.now().isoformat(timespec="seconds")
+                                item["error"] = stop_message
+                            else:
+                                item["status"] = "canceled"
                     summarize_vector_tag_task(task)
                     return
                 for item in task.get("items") or []:
                     if isinstance(item, dict) and item.get("status") == "queued":
                         item["status"] = "running"
-                        item["startedAt"] = datetime.now().isoformat(timespec="seconds")
+                        now_text = datetime.now().isoformat(timespec="seconds")
+                        item["startedAt"] = now_text
+                        item["workerHeartbeatAt"] = now_text
                         claimed = dict(item)
                         break
                 summarize_vector_tag_task(task)
@@ -23127,20 +23242,36 @@ def run_vector_tag_task(job_id: str) -> None:
                 error = str(result.get("tagAnalysisError") or "")
                 if status == "failed" and is_unconfirmed_analysis_transport_error(error):
                     status = "unconfirmed"
+                elif status == "failed" and is_analysis_configuration_error(error):
+                    stop_dispatch_error["message"] = vector_tag_configuration_error_message(error)
+                    stop_dispatch_event.set()
             except Exception as exc:
                 error = str(exc)
                 if is_unconfirmed_analysis_transport_error(error):
                     status = "unconfirmed"
+                elif is_analysis_configuration_error(error):
+                    status = "failed"
+                    stop_dispatch_error["message"] = vector_tag_configuration_error_message(error)
+                    stop_dispatch_event.set()
                 append_debug_log("vector.tag_task.segment_error", {"jobId": job_id, "itemId": claimed.get("id"), "errorType": type(exc).__name__, "error": str(exc)})
 
             def finish(task: dict) -> None:
                 for item in task.get("items") or []:
                     if isinstance(item, dict) and item.get("id") == claimed.get("id"):
+                        if task.get("cancelRequested") and item.get("status") != "running":
+                            break
                         item["status"] = status
                         item["finishedAt"] = datetime.now().isoformat(timespec="seconds")
-                        item["error"] = error
+                        item["error"] = stop_dispatch_error.get("message") if stop_dispatch_event.is_set() and status == "failed" else error
                         item["result"] = result
                         break
+                if stop_dispatch_event.is_set():
+                    stop_message = stop_dispatch_error.get("message") or "补打细标签任务已停止派发。"
+                    for item in task.get("items") or []:
+                        if isinstance(item, dict) and item.get("status") == "queued":
+                            item["status"] = "failed"
+                            item["finishedAt"] = datetime.now().isoformat(timespec="seconds")
+                            item["error"] = stop_message
                 summarize_vector_tag_task(task)
 
             update_vector_tag_task(job_id, finish)
@@ -23175,8 +23306,37 @@ def ensure_vector_tag_task_running(job_id: str) -> None:
         thread.start()
 
 
+def cancel_vector_tag_task(job_id: str) -> dict | None:
+    now_text = datetime.now().isoformat(timespec="seconds")
+
+    def cancel(task: dict) -> None:
+        task["cancelRequested"] = True
+        for item in task.get("items") or []:
+            if not isinstance(item, dict):
+                continue
+            if item.get("status") == "queued":
+                item["status"] = "canceled"
+                item["finishedAt"] = now_text
+            elif item.get("status") == "running":
+                item["status"] = "unconfirmed"
+                item["finishedAt"] = now_text
+                item["error"] = item.get("error") or "用户已中断补打细标签任务；这条片段如果已经提交到上游，结果不再继续等待。"
+                result = item.get("result") if isinstance(item.get("result"), dict) else {}
+                result["tagAnalysisStatus"] = "unconfirmed"
+                result["tagAnalysisError"] = item["error"]
+                item["result"] = result
+        summarize_vector_tag_task(task)
+
+    task = update_vector_tag_task(job_id, cancel)
+    if task:
+        with VECTOR_TAG_TASK_THREADS_LOCK:
+            VECTOR_TAG_TASK_THREADS.pop(job_id, None)
+    return task
+
+
 def reconcile_vector_tag_task_runtime() -> None:
     resume_job_ids: list[str] = []
+    stale_parent_job_ids: list[str] = []
     vector_updates: dict[str, dict] = {}
     changed = False
     with JSON_STORE_WRITE_LOCK:
@@ -23188,8 +23348,10 @@ def reconcile_vector_tag_task_runtime() -> None:
             if not isinstance(task, dict):
                 continue
             summarize_vector_tag_task(task)
-            now_text = datetime.now().isoformat(timespec="seconds")
+            now = datetime.now()
+            now_text = now.isoformat(timespec="seconds")
             task_changed = False
+            stale_running_found = False
             for item in task.get("items") or []:
                 if not isinstance(item, dict):
                     continue
@@ -23208,13 +23370,27 @@ def reconcile_vector_tag_task_runtime() -> None:
                         vector_updates[result_key] = vector_item
                     item["result"] = result
                     task_changed = True
+                    continue
+                if is_stale_vector_tag_running_item(item, now):
+                    item["status"] = "unconfirmed"
+                    item["finishedAt"] = now_text
+                    item["error"] = item.get("error") or "补打细标签任务长时间无进度，已停止这条运行记录；未确认是否已提交到上游，请重新补打该片段。"
+                    result = item.get("result") if isinstance(item.get("result"), dict) else {}
+                    result["tagAnalysisStatus"] = "unconfirmed"
+                    result["tagAnalysisError"] = item.get("error")
+                    item["result"] = result
+                    task_changed = True
+                    stale_running_found = True
             if task_changed:
                 task["updatedAt"] = now_text
                 changed = True
                 summarize_vector_tag_task(task)
+            if stale_running_found:
+                append_debug_log("vector.tag_task.reconciled_stale_running", {"jobId": job_id})
+                stale_parent_job_ids.append(str(job_id))
             if task.get("status") not in {"queued", "running", "canceling"}:
                 continue
-            if str(job_id) in alive_job_ids:
+            if str(job_id) in alive_job_ids and not stale_running_found:
                 continue
             task_changed = False
             for item in task.get("items") or []:
@@ -23238,6 +23414,10 @@ def reconcile_vector_tag_task_runtime() -> None:
                 resume_job_ids.append(str(job_id))
         if changed:
             write_vector_tag_task_store(store)
+    if stale_parent_job_ids:
+        with VECTOR_TAG_TASK_THREADS_LOCK:
+            for job_id in stale_parent_job_ids:
+                VECTOR_TAG_TASK_THREADS.pop(job_id, None)
     if vector_updates:
         merge_vector_store_items(vector_updates, model=get_ark_config()["model"])
     for job_id in resume_job_ids:
@@ -31344,6 +31524,10 @@ class Handler(BaseHTTPRequestHandler):
             if not items:
                 self.write_json(400, {"error": "没有有效片段可提交。"})
                 return
+            config_issue = validate_vector_tag_task_submit_config(items)
+            if config_issue:
+                self.write_json(409, config_issue)
+                return
             task = summarize_vector_tag_task({
                 "id": job_id,
                 "projectId": project_id,
@@ -31373,16 +31557,7 @@ class Handler(BaseHTTPRequestHandler):
             if not job_id:
                 self.write_json(400, {"error": "缺少 taskId。"})
                 return
-
-            def cancel(task: dict) -> None:
-                task["cancelRequested"] = True
-                for item in task.get("items") or []:
-                    if isinstance(item, dict) and item.get("status") == "queued":
-                        item["status"] = "canceled"
-                        item["finishedAt"] = datetime.now().isoformat(timespec="seconds")
-                summarize_vector_tag_task(task)
-
-            task = update_vector_tag_task(job_id, cancel)
+            task = cancel_vector_tag_task(job_id)
             if not task:
                 self.write_json(404, {"error": "任务不存在。"})
                 return
