@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Callable
 
-from fastapi import Body, FastAPI, File, Query, Request, UploadFile
+from fastapi import Body, FastAPI, File, Form, Query, Request, UploadFile
 from starlette.concurrency import run_in_threadpool
 from starlette.responses import JSONResponse, Response
 
@@ -218,9 +218,9 @@ def register(app: FastAPI, legacy_globals: dict[str, Any], runtime_error_respons
     @app.post("/api/ingest-local")
     async def ingest_local(
         file: UploadFile | None = File(None),
-        projectId: str = "",
-        clientItemId: str = "",
-        uploadForAnalysis: str = "",
+        projectId: str = Form(""),
+        clientItemId: str = Form(""),
+        uploadForAnalysis: str = Form(""),
     ) -> Response:
         try:
             if file is None:
