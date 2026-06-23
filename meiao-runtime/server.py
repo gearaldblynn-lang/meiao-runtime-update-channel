@@ -4472,6 +4472,22 @@ def get_file_upload_config() -> dict:
     }
 
 
+def is_legacy_kie_key_source_profile(profile: object) -> bool:
+    if not isinstance(profile, dict):
+        return False
+    credential_ref = str(profile.get("credential_ref") or "").strip().lower()
+    base_url = str(profile.get("base_url") or profile.get("api_base_url") or "").strip().lower()
+    text = " ".join(
+        str(profile.get(key) or "").strip().lower()
+        for key in ("id", "name", "model", "path", "provider")
+    )
+    if credential_ref == DEFAULT_ARK_CREDENTIAL_ID or "volces.com" in base_url or "doubao" in text:
+        return False
+    if credential_ref == DEFAULT_KIE_CREDENTIAL_ID or "api.kie.ai" in base_url or "gemini" in text:
+        return True
+    return False
+
+
 def get_kie_api_key(config: dict | None = None) -> str:
     root = config if isinstance(config, dict) else read_local_config()
     credentials = root.get("credentials", {}) if isinstance(root.get("credentials"), dict) else {}
@@ -4486,13 +4502,13 @@ def get_kie_api_key(config: dict | None = None) -> str:
     analysis = root.get("analysis", {}) if isinstance(root.get("analysis"), dict) else {}
     active = analysis.get("active_model", {}) if isinstance(analysis.get("active_model"), dict) else {}
     key = str(active.get("api_key") or "").strip()
-    if key:
+    if key and is_legacy_kie_key_source_profile(active):
         return key
     models = analysis.get("models", []) if isinstance(analysis.get("models"), list) else []
     for item in models:
         if isinstance(item, dict):
             key = str(item.get("api_key") or "").strip()
-            if key:
+            if key and is_legacy_kie_key_source_profile(item):
                 return key
     return str(os.environ.get("FILE_UPLOAD_API_KEY") or os.environ.get("KIE_API_KEY") or "").strip()
 
