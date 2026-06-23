@@ -24249,9 +24249,11 @@ def build_scene_embedding_inputs(segment: dict) -> list[dict]:
         if tail_frame and tail_frame != first_frame:
             parts.append({"type": "image_url", "image_url": {"url": tail_frame}})
 
-    video_data_url = video_file_to_data_url(video_path)
-    if video_data_url and duration > VECTOR_VIDEO_FPS_MIN_DURATION:
-        parts.append({"type": "video_url", "video_url": {"url": video_data_url, "fps": VECTOR_VIDEO_FPS}})
+    if video_path and duration > VECTOR_VIDEO_FPS_MIN_DURATION:
+        raw_video_url = str(segment.get("url") or "").strip()
+        if raw_video_url:
+            hosted_video_url = prepare_analysis_media_url(raw_video_url)
+            parts.append({"type": "video_url", "video_url": {"url": hosted_video_url, "fps": VECTOR_VIDEO_FPS}})
 
     if not parts:
         poster_path = media_url_to_file_path(segment.get("posterUrl"))
