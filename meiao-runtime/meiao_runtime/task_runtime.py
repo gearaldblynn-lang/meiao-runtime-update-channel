@@ -10,7 +10,9 @@ from typing import Any, Callable
 
 
 SUPPORTED_FIXTURE_TASK_TYPES = {"fixture-success", "fixture-fail", "fixture-sleep"}
-TERMINAL_STATUSES = {"success", "failed", "cancelled"}
+TERMINAL_STATUSES = {"success", "failed", "cancelled", "canceled"}
+COMPACT_VALUE_MAX_BYTES = 800
+COMPACT_MAX_LOGS = 20
 
 
 class TaskRuntime:
@@ -242,11 +244,48 @@ class TaskRuntime:
 
     def _save_locked(self) -> None:
         self.root.mkdir(parents=True, exist_ok=True)
-        payload = {"tasks": list(self._tasks.values())}
+        payload = {"tasks": [self._compact_task_for_storage(task) for task in self._tasks.values()]}
         data = json.dumps(payload, ensure_ascii=False, indent=2)
         tmp_file = self.store_file.with_name(f"{self.store_file.name}.{uuid.uuid4().hex}.tmp")
         tmp_file.write_text(data, encoding="utf-8")
         tmp_file.replace(self.store_file)
+
+    def _compact_task_for_storage(self, task: dict[str, Any]) -> dict[str, Any]:
+        if str(task.get("status") or "") not in TERMINAL_STATUSES:
+            return task
+        compacted = dict(task)
+        compacted["payload"] = self._compact_value_for_storage(compacted.get("payload"))
+        compacted["result"] = self._compact_value_for_storage(compacted.get("result"))
+        compacted["logs"] = self._compact_logs_for_storage(compacted.get("logs"))
+        return compacted
+
+    def _compact_value_for_storage(self, value: Any) -> Any:
+        if value is None:
+            return None
+        data = json.dumps(value, ensure_ascii=False, sort_keys=True)
+        if len(data.encode("utf-8")) <= COMPACT_VALUE_MAX_BYTES:
+            return value
+        keys = sorted(value.keys()) if isinstance(value, dict) else []
+        return {
+            "_compacted": True,
+            "type": type(value).__name__,
+            "keys": keys[:30],
+            "bytes": len(data.encode("utf-8")),
+        }
+
+    def _compact_logs_for_storage(self, value: Any) -> Any:
+        if not isinstance(value, list):
+            return value
+        compacted_items = [self._compact_value_for_storage(item) for item in value]
+        if len(compacted_items) <= COMPACT_MAX_LOGS:
+            return compacted_items
+        keep_head = COMPACT_MAX_LOGS // 2
+        keep_tail = COMPACT_MAX_LOGS - keep_head
+        return [
+            *compacted_items[:keep_head],
+            {"message": f"Compacted {len(compacted_items) - COMPACT_MAX_LOGS} middle log entries"},
+            *compacted_items[-keep_tail:],
+        ]
 
     def _now(self) -> str:
         return datetime.now(timezone.utc).isoformat(timespec="milliseconds")
