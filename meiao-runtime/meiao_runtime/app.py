@@ -714,9 +714,10 @@ def create_app(legacy_handler_cls: type[Any] | None = None) -> FastAPI:
             return runtime_error_response("api.license.logout.error", error, LICENSE_ROUTE_HEADERS)
 
     @app.get("/api/global-settings")
-    async def global_settings_get() -> Response:
+    async def global_settings_get(request: Request) -> Response:
         try:
-            payload = await run_in_threadpool(global_settings.get_bundle, legacy_globals)
+            light = str(request.query_params.get("light") or "").strip().lower() in {"1", "true", "yes", "service"}
+            payload = await run_in_threadpool(global_settings.get_bundle, legacy_globals, light)
             return json_response(payload, headers=GLOBAL_SETTINGS_ROUTE_HEADERS)
         except Exception as error:
             return runtime_error_response("api.global_settings.get.error", error, GLOBAL_SETTINGS_ROUTE_HEADERS)

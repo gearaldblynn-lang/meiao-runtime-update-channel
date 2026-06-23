@@ -12,7 +12,9 @@ def _callable(legacy_globals: dict[str, Any], name: str) -> Any:
     return value
 
 
-def get_bundle(legacy_globals: dict[str, Any]) -> dict[str, Any]:
+def get_bundle(legacy_globals: dict[str, Any], light: bool = False) -> dict[str, Any]:
+    if light:
+        return _callable(legacy_globals, "get_global_settings_light_bundle")()
     return _callable(legacy_globals, "get_global_settings_bundle")()
 
 

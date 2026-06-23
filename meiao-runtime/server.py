@@ -4376,6 +4376,15 @@ def get_global_settings_bundle() -> dict:
     }
 
 
+def get_global_settings_light_bundle() -> dict:
+    config = read_local_config()
+    return {
+        "settings": normalize_global_settings(config.get("global_settings")),
+        "serviceConfig": get_service_config(config),
+        "modelRegistry": get_model_registry_config(),
+    }
+
+
 def save_global_settings_bundle(payload: dict) -> dict:
     config = read_local_config()
     if isinstance(payload.get("settings"), dict):
@@ -27926,7 +27935,9 @@ class Handler(BaseHTTPRequestHandler):
             self.write_json(403, {"error": "软件未授权或授权已过期，请先完成账号授权。", "code": "LICENSE_REQUIRED"})
             return
         if parsed.path == "/api/global-settings":
-            self.write_json(200, get_global_settings_bundle())
+            params = parse_qs(parsed.query)
+            light = str((params.get("light") or [""])[0] or "").strip().lower() in {"1", "true", "yes", "service"}
+            self.write_json(200, get_global_settings_light_bundle() if light else get_global_settings_bundle())
             return
         if parsed.path == "/api/script-template/xlsx":
             self.handle_script_template_download()
