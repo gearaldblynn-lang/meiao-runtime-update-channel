@@ -191,6 +191,7 @@ VECTOR_DIMENSIONS = 1024
 SHARED_SCENE_LIBRARY_PROJECT_ID = "scene-library"
 VECTOR_VIDEO_FPS = 1
 VECTOR_VIDEO_FPS_MIN_DURATION = 2.0
+VECTOR_INLINE_VIDEO_MAX_BYTES = 8 * 1024 * 1024
 VECTOR_AUX_PROFILE_KEYS = ["voice", "product", "actionScene"]
 JSON_STORE_WRITE_LOCK = threading.RLock()
 CAPCUT_DRAFT_WRITE_LOCK = threading.Lock()
@@ -2645,7 +2646,7 @@ def natural_sort_key(value: str) -> list[object]:
     return [int(part) if part.isdigit() else part.lower() for part in re.split(r"(\d+)", value)]
 
 
-def recover_scene_split_records_from_vectors() -> tuple[dict, dict]:
+def recover_scene_split_records_from_vectors(valid_media_ids: set[str] | None = None) -> tuple[dict, dict]:
     if not VECTOR_STORE_FILE.exists():
         return {}, {}
     try:
@@ -2663,6 +2664,8 @@ def recover_scene_split_records_from_vectors() -> tuple[dict, dict]:
         media_id = str(raw.get("mediaId") or "").strip()
         segment_index = raw.get("segmentIndex")
         if not script_id or not media_id or not isinstance(segment_index, int):
+            continue
+        if valid_media_ids is not None and media_id not in valid_media_ids:
             continue
         grouped.setdefault(f"{script_id}|{media_id}", []).append(raw)
 
@@ -2790,6 +2793,59 @@ def filter_project_scoped_list(value: object, active_project_ids: set[str]) -> l
         item for item in items
         if isinstance(item, dict) and str(item.get("projectId") or "").strip() in active_project_ids
     ]
+
+
+def ingest_item_belongs_to_active_project(item: dict, active_project_ids: set[str]) -> bool:
+    if not active_project_ids:
+        return True
+    project_id = str(item.get("projectId") or "").strip()
+    if project_id:
+        return project_id in active_project_ids
+    return "x5pro" in active_project_ids
+
+
+def filter_ingest_items_for_active_projects(items: list[dict], active_project_ids: set[str]) -> list[dict]:
+    return [
+        item for item in items
+        if isinstance(item, dict) and ingest_item_belongs_to_active_project(item, active_project_ids)
+    ]
+
+
+def scene_split_record_media_ids(record: dict) -> set[str]:
+    media_ids: set[str] = set()
+    media_id = str(record.get("mediaId") or "").strip()
+    if media_id:
+        media_ids.add(media_id)
+    segments = record.get("sceneSegments") if isinstance(record.get("sceneSegments"), list) else []
+    for segment in segments:
+        if not isinstance(segment, dict):
+            continue
+        segment_media_id = str(segment.get("mediaId") or "").strip()
+        if segment_media_id:
+            media_ids.add(segment_media_id)
+            continue
+        for field in ("url", "posterUrl"):
+            inferred = media_id_from_media_url(segment.get(field))
+            if inferred:
+                media_ids.add(inferred)
+    return media_ids
+
+
+def filter_scene_split_records_for_active_media(records: dict, valid_media_ids: set[str], valid_script_ids: set[str]) -> dict:
+    if not isinstance(records, dict):
+        return {}
+    filtered: dict = {}
+    for key, record in records.items():
+        if not isinstance(record, dict):
+            continue
+        script_id = str(record.get("scriptId") or key or "").strip()
+        if script_id in valid_script_ids:
+            filtered[key] = record
+            continue
+        media_ids = scene_split_record_media_ids(record)
+        if media_ids and any(media_id in valid_media_ids for media_id in media_ids):
+            filtered[key] = record
+    return filtered
 
 
 def recover_flow_fission_assets_from_disk(existing_assets: object | None = None, valid_job_ids: set[str] | None = None) -> list[dict]:
@@ -2992,10 +3048,21 @@ def build_recovered_client_state() -> dict:
         merge_media_library_items(state_ingest_items, saved_ingest_items),
         disk_ingest_items,
     )
-    if ingest_items and ingest_items != saved_ingest_items:
+    ingest_items = filter_ingest_items_for_active_projects(ingest_items, active_project_ids)
+    if ingest_items != saved_ingest_items:
         write_media_library_items(ingest_items)
     valid_ingest_ids = {
         str(item.get("id") or "").strip()
+        for item in ingest_items
+        if isinstance(item, dict) and str(item.get("id") or "").strip()
+    }
+    valid_media_ids = {
+        str(item.get("backendMediaId") or "").strip()
+        for item in ingest_items
+        if isinstance(item, dict) and str(item.get("backendMediaId") or "").strip()
+    }
+    valid_script_ids = {
+        stable_script_id_from_ingest_id(str(item.get("id") or "").strip())
         for item in ingest_items
         if isinstance(item, dict) and str(item.get("id") or "").strip()
     }
@@ -3004,7 +3071,11 @@ def build_recovered_client_state() -> dict:
         for item_id, value in dict(state.get("meiao-copy-clean-review") or {}).items()
         if str(item_id).strip() in valid_ingest_ids
     }
-    queue = set(state.get("meiao-scene-split-queue") or [])
+    queue = {
+        str(item_id).strip()
+        for item_id in (state.get("meiao-scene-split-queue") or [])
+        if str(item_id).strip() in valid_ingest_ids
+    }
     for item in ingest_items:
         if not isinstance(item, dict):
             continue
@@ -3012,8 +3083,9 @@ def build_recovered_client_state() -> dict:
         if item_id and not review_map.get(item_id):
             review_map[item_id] = "keep_original"
 
-    recovered_records, recovered_vectors = recover_scene_split_records_from_vectors()
+    recovered_records, recovered_vectors = recover_scene_split_records_from_vectors(valid_media_ids)
     split_records = state.get("meiao-scene-split-records") if isinstance(state.get("meiao-scene-split-records"), dict) else {}
+    split_records = filter_scene_split_records_for_active_media(split_records, valid_media_ids, valid_script_ids)
     hidden_split_records = [
         str(item).strip()
         for item in (state.get("meiao-scene-split-hidden-records") if isinstance(state.get("meiao-scene-split-hidden-records"), list) else [])
@@ -3022,7 +3094,11 @@ def build_recovered_client_state() -> dict:
     vector_status = state.get("meiao-scene-vector-status") if isinstance(state.get("meiao-scene-vector-status"), dict) else {}
     split_records = {**recovered_records, **split_records}
     split_records = {**recover_scene_split_records_from_media_files(ingest_items, split_records), **split_records}
-    vector_status = {**recovered_vectors, **vector_status}
+    vector_status = {
+        key: value
+        for key, value in {**recovered_vectors, **vector_status}.items()
+        if key in split_records
+    }
 
     media_to_ingest = {
         str(item.get("backendMediaId") or ""): str(item.get("id") or "")
@@ -24064,7 +24140,16 @@ def extract_frame_from_media_url(media_url: str | None, offset_seconds: float = 
 def video_file_to_data_url(video_path: Path | None) -> str | None:
     if not video_path or not video_path.exists():
         return None
-    if video_path.stat().st_size > 50 * 1024 * 1024:
+    file_size = video_path.stat().st_size
+    if file_size > VECTOR_INLINE_VIDEO_MAX_BYTES:
+        append_debug_log(
+            "vector.video_inline_skipped",
+            {
+                "filename": video_path.name,
+                "size": file_size,
+                "limit": VECTOR_INLINE_VIDEO_MAX_BYTES,
+            },
+        )
         return None
     suffix = video_path.suffix.lower()
     if suffix == ".mov":

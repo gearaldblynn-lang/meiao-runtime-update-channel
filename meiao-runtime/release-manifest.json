@@ -1,6 +1,6 @@
 {
-    "version":  "20260623-105806",
-    "createdAt":  "2026-06-23T02:58:14.6801096Z",
+    "version":  "20260623-143106",
+    "createdAt":  "2026-06-23T06:31:15.8790313Z",
     "channel":  "git-update",
     "payloadMode":  "partial",
     "repository":  "https://github.com/gearaldblynn-lang/meiao-runtime-update-channel.git",
@@ -44,7 +44,7 @@
                              "integrations/capcut_mate/upstream"
                          ],
     "fileCount":  81,
-    "payloadHash":  "1e6d4d4e7c08264811349d5e0e6579ca39578e6857af7cf905c28ca38e74604b",
+    "payloadHash":  "24d037227403da2ce91216ed8606d934466e6f44c4dc1a7a960f4fdf1d1cb4fb",
     "files":  [
                   {
                       "path":  "backup-runtime-data.ps1",
@@ -62,28 +62,28 @@
                       "size":  71
                   },
                   {
-                      "path":  "frontend/assets/AIOutput-C99Nf-Tn.js",
-                      "sha256":  "c88b02d5e387fe89627abf3942c5901e2d4ff1f7072b68dd3f8165c0aa1ebb70",
+                      "path":  "frontend/assets/AIOutput-CTYFVOgV.js",
+                      "sha256":  "caab06197c1b70c9efa9869f333bb5aea1266a38928b5bd8810bc76e24720fc7",
                       "size":  49918
                   },
                   {
-                      "path":  "frontend/assets/CopyClean-Dlr04Ti-.js",
-                      "sha256":  "6eb90b2ced037fd91f6087447ba3ce2efd0842e683b230bd7cc29e08e81e51fa",
+                      "path":  "frontend/assets/CopyClean-BLjnTx3n.js",
+                      "sha256":  "99c5adacc0558e44f4bcb73a2cb08f8bdb41b2b82b72d83170af5d4c59847c46",
                       "size":  47077
                   },
                   {
-                      "path":  "frontend/assets/draftTemplates-Bz0AgljR.js",
-                      "sha256":  "e054e23c605fff59b67c7cf7860d111a2af94b0f456acb47c90385aa436988d8",
-                      "size":  17278
-                  },
-                  {
-                      "path":  "frontend/assets/DraftTemplates-QEkHxA1C.js",
-                      "sha256":  "44b686154a27b84a147e22010befa5aed5bd90555deacd3e86732808798471a2",
+                      "path":  "frontend/assets/DraftTemplates-CLmV7BdU.js",
+                      "sha256":  "18c32b8adc1dceec2616d61ace4b17da72d7b659e9ee123aa024bdc797e8cd34",
                       "size":  143887
                   },
                   {
-                      "path":  "frontend/assets/Fission-CACR_slu.js",
-                      "sha256":  "ac9cb3ba950d6bc9fa124c510ad43df042be31ffc7b1b15de85659a9e65dd3c0",
+                      "path":  "frontend/assets/draftTemplates-uuVgeN6o.js",
+                      "sha256":  "97fb8b5bf9f6cf0b0a192d76081dc6ca3dc1e9b7b3612e59f440986ea3fb447c",
+                      "size":  17278
+                  },
+                  {
+                      "path":  "frontend/assets/Fission-CdRrVjEC.js",
+                      "sha256":  "0d77b48e8c2ccc970277711390e646a1d380ff006a06fe42a87d15e4f98520f1",
                       "size":  173309
                   },
                   {
@@ -92,13 +92,13 @@
                       "size":  109092
                   },
                   {
-                      "path":  "frontend/assets/index-Ih9MUEi8.js",
-                      "sha256":  "8066906bdb6f6aa1b55e499d45046d93c5e56d1a13d7a9665db65af165d735ad",
-                      "size":  469825
+                      "path":  "frontend/assets/index-BrB6eBtC.js",
+                      "sha256":  "9d171523eca9e8d8b046240d78aa9a9eee1d8e92e6362e631f7a357432e5f681",
+                      "size":  470847
                   },
                   {
-                      "path":  "frontend/assets/OutputTasks-_TogaEpL.js",
-                      "sha256":  "7652e96ac190ed6a8ae36d97639faf02b974488d7dfa8811af89ab100e30216c",
+                      "path":  "frontend/assets/OutputTasks-BT3XWUpq.js",
+                      "sha256":  "e7ebce5a682a2dbd020b9b90a5b7b8c2d22fc985cfc45edda1c11ade1f713a14",
                       "size":  169448
                   },
                   {
@@ -143,7 +143,7 @@
                   },
                   {
                       "path":  "frontend/index.html",
-                      "sha256":  "71f2718f588618f61e4698860d03097529521968ffb7a334d8c9ea5006dad9e9",
+                      "sha256":  "744925609b04dc0bc9d1e33c188e2294fcc5d162d918135a55753c876e1f6f3b",
                       "size":  560
                   },
                   {
@@ -398,8 +398,8 @@
                   },
                   {
                       "path":  "server.py",
-                      "sha256":  "035ff3b58fd403c96392eb59911353c4a71ec347e26a5d6c5060ce3f4fe8e479",
-                      "size":  1528059
+                      "sha256":  "1d259fc6c564471c765b0d8ab4297f83880f3317c95e84fd569df77892ff514f",
+                      "size":  1531344
                   },
                   {
                       "path":  "start-meiao.bat",
