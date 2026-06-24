@@ -6197,6 +6197,8 @@ def normalize_model_profile(raw: object, purpose: str, index: int, shared_api_ke
         api_key = explicit_api_key or ark_api_key
     elif raw_credential_ref == "direct":
         api_key = explicit_api_key
+    elif raw_credential_ref == DEFAULT_KIE_CREDENTIAL_ID:
+        api_key = shared_api_key or explicit_api_key
     else:
         api_key = explicit_api_key or shared_api_key
     credential_ref = raw_credential_ref or (DEFAULT_KIE_CREDENTIAL_ID if api_key else "")
