@@ -223,6 +223,89 @@ function Test-PortListening {
   return $connections.Count -gt 0
 }
 
+function Test-UsablePythonPath {
+  param([string]$CandidatePath)
+  if ([string]::IsNullOrWhiteSpace($CandidatePath)) {
+    return $false
+  }
+  if ($CandidatePath.ToLowerInvariant().Contains("\windowsapps\")) {
+    return $false
+  }
+  return (Test-Path -LiteralPath $CandidatePath -PathType Leaf)
+}
+
+function Resolve-CapCutMatePython {
+  $candidates = @()
+  if (Test-UsablePythonPath $pythonPath) {
+    $candidates += $pythonPath
+  }
+
+  $pyLauncher = Get-Command py -ErrorAction SilentlyContinue
+  if ($pyLauncher) {
+    try {
+      # Keep this explicit for support: py -3.11 resolves the real Python executable instead of WindowsApps python.exe.
+      $resolved = & $pyLauncher.Source -3.11 -c "import sys; print(sys.executable)" 2>$null | Select-Object -First 1
+      if (Test-UsablePythonPath $resolved) {
+        $candidates += [string]$resolved
+      }
+    } catch {
+      Write-StartupLog ("capcut-mate python launcher probe failed: {0}" -f $_.Exception.Message)
+    }
+  }
+
+  $pythonCommand = Get-Command python -ErrorAction SilentlyContinue
+  if ($pythonCommand -and (Test-UsablePythonPath $pythonCommand.Source)) {
+    $candidates += $pythonCommand.Source
+  }
+
+  $localPythonRoot = Join-Path $env:LOCALAPPDATA "Programs\Python"
+  foreach ($versionDir in @("Python311", "Python312", "Python310")) {
+    $candidate = Join-Path $localPythonRoot "$versionDir\python.exe"
+    if (Test-UsablePythonPath $candidate) {
+      $candidates += $candidate
+    }
+  }
+
+  foreach ($candidate in @($candidates | Select-Object -Unique)) {
+    try {
+      $probe = & $candidate -c "import sys; print(sys.executable)" 2>$null | Select-Object -First 1
+      if (Test-UsablePythonPath $probe) {
+        return [string]$probe
+      }
+    } catch {
+      Write-StartupLog ("capcut-mate python probe failed path={0} error={1}" -f $candidate, $_.Exception.Message)
+    }
+  }
+  return ""
+}
+
+function Resolve-CapCutExecutable {
+  $candidates = @()
+  foreach ($envName in @("MEIAO_CAPCUT_PATH", "CAPCUT_PATH")) {
+    $value = [Environment]::GetEnvironmentVariable($envName, "Process")
+    if (-not $value) {
+      $value = [Environment]::GetEnvironmentVariable($envName, "User")
+    }
+    if (-not $value) {
+      $value = [Environment]::GetEnvironmentVariable($envName, "Machine")
+    }
+    if (-not [string]::IsNullOrWhiteSpace($value)) {
+      $candidates += $value
+    }
+  }
+  $candidates += @(
+    "D:\JianyingPro\5.9.0.11632\JianyingPro.exe",
+    "C:\Program Files\JianyingPro\JianyingPro.exe",
+    "C:\Program Files (x86)\JianyingPro\JianyingPro.exe"
+  )
+  foreach ($candidate in @($candidates | Select-Object -Unique)) {
+    if (-not [string]::IsNullOrWhiteSpace($candidate) -and (Test-Path -LiteralPath $candidate -PathType Leaf)) {
+      return [string]$candidate
+    }
+  }
+  return ""
+}
+
 function Start-CapCutMate {
   if (Test-PortListening $capcutMatePort) {
     Write-StartupLog "capcut-mate sidecar already listening"
@@ -232,9 +315,9 @@ function Start-CapCutMate {
     Write-StartupLog "capcut-mate sidecar missing; skip"
     return
   }
-  $systemPython = (Get-Command python -ErrorAction SilentlyContinue)
-  if (-not $systemPython) {
-    Write-StartupLog "capcut-mate sidecar skipped; system python missing"
+  $capcutMatePython = Resolve-CapCutMatePython
+  if ([string]::IsNullOrWhiteSpace($capcutMatePython)) {
+    Write-StartupLog "capcut-mate sidecar skipped; usable Python 3.11+ missing or WindowsApps fake python detected"
     return
   }
   Remove-Item $capcutMateOutLog, $capcutMateErrLog -ErrorAction SilentlyContinue
@@ -246,13 +329,33 @@ function Start-CapCutMate {
   }
   $env:DRAFT_SAVE_PATH = $draftSavePath
   $env:CAPCUT_REQUIRED_VERSION = "5.9"
-  $env:CAPCUT_PATH = "D:\JianyingPro\5.9.0.11632\JianyingPro.exe"
+  $capcutExecutable = Resolve-CapCutExecutable
+  if ([string]::IsNullOrWhiteSpace($capcutExecutable)) {
+    Remove-Item Env:\CAPCUT_PATH -ErrorAction SilentlyContinue
+    Write-StartupLog "capcut-mate CAPCUT_PATH not set; no configured/fixed CapCut executable was found"
+  } else {
+    $env:CAPCUT_PATH = $capcutExecutable
+    Write-StartupLog ("capcut-mate CAPCUT_PATH={0}" -f $capcutExecutable)
+  }
   $env:ENABLE_APIKEY = "false"
   $env:DRAFT_URL = "http://127.0.0.1:30000/openapi/capcut-mate/v1/get_draft"
   $env:DOWNLOAD_URL = "http://127.0.0.1:30000"
+  $vendorPath = Join-Path $runtimeRoot "vendor"
+  $env:MEIAO_CAPCUT_MATE_ROOT = $capcutMateRoot
+  $env:MEIAO_RUNTIME_VENDOR = $vendorPath
+  $previousPythonPath = [Environment]::GetEnvironmentVariable("PYTHONPATH", "Process")
+  $pythonPathParts = @($capcutMateRoot)
+  if (Test-Path -LiteralPath $vendorPath -PathType Container) {
+    $pythonPathParts += $vendorPath
+  }
+  if (-not [string]::IsNullOrWhiteSpace($previousPythonPath)) {
+    $pythonPathParts += $previousPythonPath
+  }
+  $env:PYTHONPATH = ($pythonPathParts -join [System.IO.Path]::PathSeparator)
+  $bootstrapCode = "import os,runpy,sys; root=os.environ['MEIAO_CAPCUT_MATE_ROOT']; vendor=os.environ.get('MEIAO_RUNTIME_VENDOR',''); [sys.path.insert(0,p) for p in [vendor,root] if p and os.path.isdir(p) and p not in sys.path]; os.chdir(root); runpy.run_path('main.py', run_name='__main__')"
   $process = Start-Process `
-    -FilePath $systemPython.Source `
-    -ArgumentList @("-u", "main.py") `
+    -FilePath $capcutMatePython `
+    -ArgumentList @("-u", "-c", $bootstrapCode) `
     -WorkingDirectory $capcutMateRoot `
     -RedirectStandardOutput $capcutMateOutLog `
     -RedirectStandardError $capcutMateErrLog `

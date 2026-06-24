@@ -1,0 +1,22 @@
+Metadata-Version: 2.4
+Name: capcut-mate
+Version: 1.0.0
+Summary: CapCut Mate API Service
+Author-email: Hommy <taohongmin51@gmail.com>
+Requires-Python: >=3.11
+License-File: LICENSE
+Requires-Dist: email-validator>=2.2.0
+Requires-Dist: fastapi>=0.100.0
+Requires-Dist: pymediainfo>=7.0.1
+Requires-Dist: requests>=2.32.5
+Requires-Dist: uvicorn[standard]>=0.35.0
+Requires-Dist: cos-python-sdk-v5>=1.9.38
+Requires-Dist: oss2
+Requires-Dist: imageio>=2.37.3
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0.0; extra == "dev"
+Provides-Extra: windows
+Requires-Dist: pywin32>=311; sys_platform == "win32" and extra == "windows"
+Requires-Dist: pyautogui>=0.9.54; sys_platform == "win32" and extra == "windows"
+Requires-Dist: uiautomation>=2.0.29; sys_platform == "win32" and extra == "windows"
+Dynamic: license-file

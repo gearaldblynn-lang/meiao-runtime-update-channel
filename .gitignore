@@ -4,6 +4,10 @@ logs/
 drafts/
 media/
 integrations/upstream/
+integrations/capcut_mate/upstream/capcut-mate-main/output/
+integrations/capcut_mate/upstream/capcut-mate-main/logs/
+integrations/capcut_mate/upstream/capcut-mate-main/db/
+integrations/capcut_mate/upstream/capcut-mate-main/temp/
 *.log
 runtime.pid
 *.pid

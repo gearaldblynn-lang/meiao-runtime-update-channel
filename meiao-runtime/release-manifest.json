@@ -1,6 +1,6 @@
 {
-    "version":  "20260624-151335",
-    "createdAt":  "2026-06-24T07:13:37.8589116Z",
+    "version":  "20260624-165551",
+    "createdAt":  "2026-06-24T08:55:57.0141012Z",
     "channel":  "git-update",
     "payloadMode":  "partial",
     "repository":  "https://github.com/gearaldblynn-lang/meiao-runtime-update-channel.git",
@@ -16,6 +16,19 @@
                            "integrations/capcut_mate/__init__.py",
                            "integrations/capcut_mate/adapter.py",
                            "integrations/capcut_mate/README.md",
+                           "integrations/capcut_mate/upstream/capcut-mate-main/assets",
+                           "integrations/capcut_mate/upstream/capcut-mate-main/config",
+                           "integrations/capcut_mate/upstream/capcut-mate-main/src",
+                           "integrations/capcut_mate/upstream/capcut-mate-main/template",
+                           "integrations/capcut_mate/upstream/capcut-mate-main/config.py",
+                           "integrations/capcut_mate/upstream/capcut-mate-main/exceptions.py",
+                           "integrations/capcut_mate/upstream/capcut-mate-main/main.py",
+                           "integrations/capcut_mate/upstream/capcut-mate-main/openapi.yaml",
+                           "integrations/capcut_mate/upstream/capcut-mate-main/pyproject.toml",
+                           "integrations/capcut_mate/upstream/capcut-mate-main/uv.lock",
+                           "integrations/capcut_mate/upstream/capcut-mate-main/README.md",
+                           "integrations/capcut_mate/upstream/capcut-mate-main/README.zh.md",
+                           "integrations/capcut_mate/upstream/capcut-mate-main/LICENSE",
                            "start-runtime.ps1",
                            "start-meiao.bat",
                            "update-meiao.bat",
@@ -41,10 +54,13 @@
                              "drafts",
                              "media",
                              "integrations/upstream",
-                             "integrations/capcut_mate/upstream"
+                             "integrations/capcut_mate/upstream/capcut-mate-main/output",
+                             "integrations/capcut_mate/upstream/capcut-mate-main/logs",
+                             "integrations/capcut_mate/upstream/capcut-mate-main/db",
+                             "integrations/capcut_mate/upstream/capcut-mate-main/temp"
                          ],
-    "fileCount":  81,
-    "payloadHash":  "600174a9699843a1807f3f64fad0a6f6fd5c3bbf18d335b3e229312ed9a59eeb",
+    "fileCount":  258,
+    "payloadHash":  "5e5304c37e207f66a7f2313a702c4d8a4c5a4ec1c2dfd716844cc8535e952bb0",
     "files":  [
                   {
                       "path":  "backup-runtime-data.ps1",
@@ -170,6 +186,891 @@
                       "path":  "integrations/capcut_mate/README.md",
                       "sha256":  "dea4ed23692569c2b0aeab973a326d25247ed4a960d99679bffb6850b7723267",
                       "size":  919
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/assets/coze1.png",
+                      "sha256":  "902091545e73bee42210e55cadf48cb2b5131888934403f927aa0699f95ba60e",
+                      "size":  96214
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/assets/coze2.png",
+                      "sha256":  "6b0e13e09af09861b94e9fb6bc87bff80d76be056ffc1b45939d1c7c8de40a72",
+                      "size":  32764
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/assets/coze3.png",
+                      "sha256":  "4c9f1e596f759af8e6d42e5bed04b4c9a98cf8ffb64aec9abdbf2086dfbf0fbe",
+                      "size":  87979
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/assets/coze4.png",
+                      "sha256":  "2779c817ba0adfc71792c5507d94d2028c8458367e7819b50544c3e760eb66d2",
+                      "size":  35145
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/assets/coze5.png",
+                      "sha256":  "a908f2196b36bae9f098f7aa7d7e01c4bb68c6bf1c99b013e2a66f07e5ab58a2",
+                      "size":  28060
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/assets/coze6.png",
+                      "sha256":  "38d1f41cfe3b63c73c5f0b372c9942a37fe90f4c329b744803c8bff3e1fb7af3",
+                      "size":  61553
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/assets/coze7.png",
+                      "sha256":  "3e1ff6febacc75338c01facf68a24d8b263eee9a001b2107c37433048d0ef86e",
+                      "size":  116023
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/assets/wechat.jpg",
+                      "sha256":  "2e15cf26cd74e273d995469833a644e51f74ec6aa8ee6c70e4d031c2d54096b2",
+                      "size":  46468
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/assets/wechat-q.jpg",
+                      "sha256":  "7f0f235ad9c3868901d99da13606823d7059624e74fe10960a4ce3905b8c35f2",
+                      "size":  147197
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/config.py",
+                      "sha256":  "da823ac39d97ec97df51651bf30fcf91fda40024fc83620215ecaa3f2cd73ddf",
+                      "size":  3124
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/config/huazi.json",
+                      "sha256":  "a10ec5a36d5d907a33f8802e2feb1ba9b857927c644c6c6b80262e3663dba47c",
+                      "size":  166409
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/config/sticker.json",
+                      "sha256":  "c750da1a2d146a246873a6d65151253d2dae5689eae53e95d930aabaa35ed857",
+                      "size":  325620
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/exceptions.py",
+                      "sha256":  "7ea90d8fadbeb3bad16984dc47fa0ec9bec5cfec61ab4cfadb7945bd1cd6541b",
+                      "size":  6762
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/LICENSE",
+                      "sha256":  "d385248f2457a1b43cdf802f73484d979c78ca5d8724717e5aeaea6a04d0bd1a",
+                      "size":  1066
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/main.py",
+                      "sha256":  "9308b79a035d738d91ee1aa1e7dca5f3360eeaebe28b1519261c3ac094a90c76",
+                      "size":  1485
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/openapi.yaml",
+                      "sha256":  "19873f3dbfd5e505e7419c2e984068a3bd9b158d735b707fe519c1d29582f729",
+                      "size":  664794
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/pyproject.toml",
+                      "sha256":  "623cfc5610b9735d7be6003830ec55fdd1dff91a5272a2ae8bed388d34278d4a",
+                      "size":  721
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/README.md",
+                      "sha256":  "edbd97760deeab214148451e78efaa4317c7fd3add4596fe8235257e8ff953b7",
+                      "size":  12175
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/README.zh.md",
+                      "sha256":  "dea403948d1897f8fda845c3a0fa1af4afeea9111e4e91a6aedfdcacef93962c",
+                      "size":  10766
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/__init__.py",
+                      "sha256":  "c59cfc278cd204ec2f365f9daeca0216b8fe828f4ed8824c1d7139240731e617",
+                      "size":  37
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/capcut_mate.egg-info/dependency_links.txt",
+                      "sha256":  "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+                      "size":  1
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/capcut_mate.egg-info/PKG-INFO",
+                      "sha256":  "bcd0e84a3f78d32f93236f7fcc6ef96373e5a7f6dc711ff0b1b31a68afa7aad5",
+                      "size":  822
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/capcut_mate.egg-info/requires.txt",
+                      "sha256":  "96dbb9d05e1049d845429d880af4482bbd495dfae9432ef76cf2e5d70b045eb3",
+                      "size":  268
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/capcut_mate.egg-info/SOURCES.txt",
+                      "sha256":  "96f5e639d8769d8c3409a1fa76a2d52ff8ff0fbac11918512bb23f2666e71ab9",
+                      "size":  6087
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/capcut_mate.egg-info/top_level.txt",
+                      "sha256":  "464afe88a2b5e65e46495f2a51f594bde1ffacf188874792c9d5da38a089748f",
+                      "size":  66
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/middlewares/__init__.py",
+                      "sha256":  "2261ed360188dea57025a8e8135476ea409efca4529d2df5f15f4f87e15113d3",
+                      "size":  229
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/middlewares/prepare.py",
+                      "sha256":  "815d1b332afae36f918b9db0c4dfa473cc8ad84d9ebd93fdeb9a262b10cde996",
+                      "size":  634
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/middlewares/response.py",
+                      "sha256":  "bebc95907827bf64f4fe5ac6a8a2939d483a98c89bbc44b73a95f81b5d725fe9",
+                      "size":  6697
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/middlewares/trace_context.py",
+                      "sha256":  "c63eef1b3b474eba79a31f938a0d41ee22846cc2f7f844d4490f0034abeec022",
+                      "size":  1237
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/pyJianYingDraft/__init__.py",
+                      "sha256":  "2e6fbf3fe65b7b097afaea8e403ea3cacea0dc4232bf6125e023c6b8c4540a2b",
+                      "size":  9717
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/pyJianYingDraft/animation.py",
+                      "sha256":  "ba169593216caa056096d021bf632270bf75bafa8d3d6feb342bd5fe98d69921",
+                      "size":  5231
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/pyJianYingDraft/assets/__init__.py",
+                      "sha256":  "d536fa8e01a9d8d2f5c6535fa03ae90e814ea5c961b8223b18bab20e3331fa5f",
+                      "size":  1146
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/pyJianYingDraft/assets/draft_content_template.json",
+                      "sha256":  "f3b9036da3a0bce68145657bb3fa9b0147e0fe39f7082e43590fb91b63f99d94",
+                      "size":  3316
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/pyJianYingDraft/assets/draft_meta_info.json",
+                      "sha256":  "8bbc602f00a61a31ee16059a7a4525aa5d97a06cde509930a159f0f5ed1a77f6",
+                      "size":  1374
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/pyJianYingDraft/audio_segment.py",
+                      "sha256":  "a5c90b92970efe35cfa3cdc316a04b59122f2e2c6b6839fa48b7442fa7c1ed3a",
+                      "size":  9509
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/pyJianYingDraft/draft_folder.py",
+                      "sha256":  "fc3bbbc3506909661de05ec436d4d4d3f3c32620996028104443daeb0bb7c01d",
+                      "size":  6533
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/pyJianYingDraft/effect_segment.py",
+                      "sha256":  "3b8d65fdaf8295eaa9f4ef6f75d5caaa01ba792de2d14af87a22d0d0c33599ea",
+                      "size":  1262
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/pyJianYingDraft/exceptions.py",
+                      "sha256":  "628ef579690b4cd15f67d0463f05c3b2533fbc4df6552db6fb06cfffaf3e4444",
+                      "size":  679
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/pyJianYingDraft/jianying_controller.py",
+                      "sha256":  "8dd490fbf8f0e97a7284351289ec4526efb9a20023f2176971d1f3c7251e74ab",
+                      "size":  31447
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/pyJianYingDraft/keyframe.py",
+                      "sha256":  "9e839f72f6ce7a2f20ae3736c75ed8ac1d338e4a1657fe1d56bfe4c1e8f5dc8b",
+                      "size":  3517
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/pyJianYingDraft/local_materials.py",
+                      "sha256":  "be17f38c46c36dea8169321d9329a7c3abdcc667bf9bf5e6ea541fa19f630b33",
+                      "size":  7691
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/pyJianYingDraft/metadata/__init__.py",
+                      "sha256":  "534bf2702ff962014b2d91367416d99015783a6b88106be043fa74740e46f4d1",
+                      "size":  1412
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/pyJianYingDraft/metadata/audio_scene_effect.py",
+                      "sha256":  "9bb31ad9a373645d2a912d8727f16cf8ef2f5cfb1b9d922fee2baa7fffaed7b4",
+                      "size":  24850
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/pyJianYingDraft/metadata/effect_meta.py",
+                      "sha256":  "6176b52d02b8469144da2efcd3479244e06a6419ede5cb91a939b61a2fca97fd",
+                      "size":  5600
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/pyJianYingDraft/metadata/filter_meta.py",
+                      "sha256":  "1ab1e5ad0faaa6ed52503a049afbc4d5fafb6408eaae7233d223a3a7e8a330a2",
+                      "size":  244091
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/pyJianYingDraft/metadata/font_meta.py",
+                      "sha256":  "707ef81810eca58c166c1cfa9ad94a430df469418c8d5ca38426a9f2daa46014",
+                      "size":  112245
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/pyJianYingDraft/metadata/mask_meta.py",
+                      "sha256":  "e136e86ed84b8a824cfe6f0c9e7625b484b24d2682d5121c80223371119c327a",
+                      "size":  922
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/pyJianYingDraft/metadata/mix_mode_meta.py",
+                      "sha256":  "f754591ab0621db3bd5bc1883b08507fa731259c2bfda70c4387623a7a2d6803",
+                      "size":  1327
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/pyJianYingDraft/metadata/speech_to_song.py",
+                      "sha256":  "a9e58d00d7cc6f286eeb4305a210f4961b4872a8f005b17ad6a0921dd99a7707",
+                      "size":  960
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/pyJianYingDraft/metadata/text_intro.py",
+                      "sha256":  "ce9440559ce5fbf29b2d6155a5abfc73570964e7c9a7e2ab7d2f55a7d0347291",
+                      "size":  20977
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/pyJianYingDraft/metadata/text_loop.py",
+                      "sha256":  "5a750aed6470638fe7bde033b0d0fb1461de419db915f4512e01ed9bc3021a12",
+                      "size":  13346
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/pyJianYingDraft/metadata/text_outro.py",
+                      "sha256":  "54d41312d732ba777f322d4071702f3cdf0f5f44056c37d6776b42af7e7bf836",
+                      "size":  14046
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/pyJianYingDraft/metadata/tone_effect.py",
+                      "sha256":  "5ddadb9943d9bfce6e84246af8fe5aff185bb49c5a86cbed328a5e7fa4ee5317",
+                      "size":  9185
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/pyJianYingDraft/metadata/transition_meta.py",
+                      "sha256":  "6aa65a3b847d0ba79f7f577cda397d83732d433977c98eda230489afab7c1eae",
+                      "size":  81819
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/pyJianYingDraft/metadata/video_character_effect.py",
+                      "sha256":  "e5657b0db2ddfda2f00d97e02ab6a7385c22c5060436c65a90ec2c54762e2817",
+                      "size":  130817
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/pyJianYingDraft/metadata/video_group_animation.py",
+                      "sha256":  "71d5f50601e2c36464ac7d8c9fbad804d8f561f37f76757c8c0c7d6db46a25c3",
+                      "size":  17759
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/pyJianYingDraft/metadata/video_intro.py",
+                      "sha256":  "5913fa37aac6caef5a5bd5719dd19f9563debbc835c4963e40b245f9fe7c5101",
+                      "size":  22397
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/pyJianYingDraft/metadata/video_outro.py",
+                      "sha256":  "e12b9727d3945fd1d86a77180c1ad826cdc63ff21da57f4b4afbc508a59cb2d8",
+                      "size":  17955
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/pyJianYingDraft/metadata/video_scene_effect.py",
+                      "sha256":  "cb0d3591b883bf9b4a3f21474741fe4b73a42dffc1ccd02afc6aefde8d239427",
+                      "size":  597905
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/pyJianYingDraft/script_file.py",
+                      "sha256":  "990d598aa3834568a783af14ae896eee397b6fa95ffd8ef15b179cd1b6151183",
+                      "size":  40256
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/pyJianYingDraft/segment.py",
+                      "sha256":  "f7b32b264d0a2e4eb63f1117f656dd50798440f10b92043d9947872fb7da9d6c",
+                      "size":  10769
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/pyJianYingDraft/template_mode.py",
+                      "sha256":  "489ec9a610dd0be62609c71504734bdc0492d6796e9b4c37f9d58883c193ea26",
+                      "size":  8402
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/pyJianYingDraft/text_segment.py",
+                      "sha256":  "9f425f5f429ea7506e8e891775e9fc834f90692821fd2c4e90ce3a044aa75c4a",
+                      "size":  18528
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/pyJianYingDraft/time_util.py",
+                      "sha256":  "346e9784f824ebd8e7dcb6210c222a7ce75c274931c6507d2c8a44579e4f343e",
+                      "size":  3127
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/pyJianYingDraft/track.py",
+                      "sha256":  "e3c88d10bbcb6d52ee7adc27f1f94b284e27b748b09f19cae21876f24ce20dd1",
+                      "size":  4543
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/pyJianYingDraft/util.py",
+                      "sha256":  "32880a93fac8f9fa472f115f59004efb5e403dede888f59102b97dadf77e8ea7",
+                      "size":  2118
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/pyJianYingDraft/video_segment.py",
+                      "sha256":  "5b30b03c9b92c9e0f6ac3e81895b6da829efbbda29267be8d7dc1f7417a8931e",
+                      "size":  24904
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/router/__init__.py",
+                      "sha256":  "0a032aecd27516c51f94c7fff0102efae41688ba9e2a8a6486dff7f6a1b8c86c",
+                      "size":  60
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/router/v1.py",
+                      "sha256":  "89a51b995e09d023c02b302d00463237814b9074fa5ab1a2a10578f2c04da6c7",
+                      "size":  28257
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/schemas/__init__.py",
+                      "sha256":  "5a1aa35d331147d768bb20d6a067b2365fca38448f36e20e2366426e9fc4d068",
+                      "size":  867
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/schemas/add_audios.py",
+                      "sha256":  "b5c48af7bf288e85512a09448f21c922f5ef89232ac5226ca1915b3253cdff9c",
+                      "size":  568
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/schemas/add_captions.py",
+                      "sha256":  "cccabba9c5ea8069553fd7a0628fcfb962068aab66b7afe61a64db154b53cb78",
+                      "size":  4661
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/schemas/add_effects.py",
+                      "sha256":  "a82af04364fd64797ea29b4346ee2074d913853abd759c4354e1e023afac4281",
+                      "size":  939
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/schemas/add_filters.py",
+                      "sha256":  "5fe32d2b7bda8a2a0a3f7109efc7704b260b91db798db330f740e40ece13c345",
+                      "size":  1033
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/schemas/add_images.py",
+                      "sha256":  "cced12a30bb5e7fbf5555def51efefd4794d03f1425da29ab2cd334931bee8d3",
+                      "size":  1356
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/schemas/add_keyframes.py",
+                      "sha256":  "4a7282e87dbfcecd6c29b09c342ac94c6cca8d56d8d4f974582092f275f9962b",
+                      "size":  1109
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/schemas/add_masks.py",
+                      "sha256":  "8f74b331d8a896c5f3ff173ac3d446d5884902a1948505a6166ac927b6481df0",
+                      "size":  1362
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/schemas/add_sticker.py",
+                      "sha256":  "9a7bf2961274c78a893e33dfb930d776b17e73e27f3b83309bdcc7d1b825082f",
+                      "size":  1111
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/schemas/add_text_style.py",
+                      "sha256":  "fe918b988e4f1066786c6f9cf1f26141bfef4241d9382d48f48ff568a63a236f",
+                      "size":  713
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/schemas/add_videos.py",
+                      "sha256":  "3ccb069700a547b3ae50e32814b25abd77ddd35c10d7393a85256b07c91fc4a6",
+                      "size":  1981
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/schemas/audio_infos.py",
+                      "sha256":  "b92c82ac644005432729d564c3b94254387c2685edc8b1dfbd56958cc7f249ff",
+                      "size":  633
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/schemas/audio_timelines.py",
+                      "sha256":  "521b07e0249edbe63d0a11bdd8ebc1d6b5cf901d704cc314e1d34967d5d2f0ca",
+                      "size":  674
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/schemas/caption_infos.py",
+                      "sha256":  "a81c8d69c39764e4ed9a93e8a2445db6a331afdecc24dc2a3ef8b85f0f42032f",
+                      "size":  1570
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/schemas/create_draft.py",
+                      "sha256":  "d52488b27ceb4de728b1de632ee8fbd544891fb0f2c5eb90fd3303292f1e32bd",
+                      "size":  483
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/schemas/easy_create_material.py",
+                      "sha256":  "d64535fbb5fc2a0f91c922e9e3ac7aba7808b1d87e45ee715b032459e9463d35",
+                      "size":  970
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/schemas/effect_infos.py",
+                      "sha256":  "8c2411e8205a5acc3819a89d32269e9063a62a663ab2a21d426a5174b436b094",
+                      "size":  478
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/schemas/filter_infos.py",
+                      "sha256":  "a43c0a3835e9fb59e8be92bf57ccf406dd78ce05b9b562ef2e980e854b7f3855",
+                      "size":  906
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/schemas/gen_video.py",
+                      "sha256":  "12baba65750a686d40730341d69870e2b4c44705cfbf7e542bac43dfca6bd202",
+                      "size":  807
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/schemas/gen_video_active_count.py",
+                      "sha256":  "f5ee07f3a4106118f0ffb5dfc00c41c0cf1b639c6284150d43c1f5abd7b047af",
+                      "size":  308
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/schemas/gen_video_status.py",
+                      "sha256":  "f8245f39ebae09c841f73d2c659b273f363979cec5958b8ff54691d751bc64e7",
+                      "size":  1099
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/schemas/get_audio_duration.py",
+                      "sha256":  "48496d8472b9b12bad8c7fc4f8f4289e22f3848f97919a94d41e949aa074093d",
+                      "size":  790
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/schemas/get_draft.py",
+                      "sha256":  "d07cc3253d26f569159420b9c604451b6853e32d14b3ff94e86a3c2502a68db3",
+                      "size":  359
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/schemas/get_effects.py",
+                      "sha256":  "1872f8b87d3f3011e7507d719fddce68c2ce3ff6d83f80341ea1e01f02847f02",
+                      "size":  860
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/schemas/get_filters.py",
+                      "sha256":  "08143c04296d7058965279a3fe6572cccf50575f2e0896508665b2f2126b4b25",
+                      "size":  803
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/schemas/get_image_animations.py",
+                      "sha256":  "6169eda1a8c6c99f16cb22db23f9dec2617f9ef9594e9d7654b52f38dcaabc2e",
+                      "size":  1640
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/schemas/get_text_animations.py",
+                      "sha256":  "35dca9e01c5ea0b371747dec3339c921d596c1e062fa1a03b9c17387dfcfae05",
+                      "size":  1636
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/schemas/get_text_effects.py",
+                      "sha256":  "6130fe944580b39fafb1245f0b10e6405162b7e3f9534183c2bae8c80c75a379",
+                      "size":  730
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/schemas/get_url.py",
+                      "sha256":  "52cc09e233cbe57e67cd2d846d4929e618e0e53c5847e6e3c195393b468662a2",
+                      "size":  290
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/schemas/imgs_infos.py",
+                      "sha256":  "c3709c7328a6ddf5d0241a2d5e8e4d89d13536cd2faf66982b3b87adc3fa444f",
+                      "size":  1372
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/schemas/keyframes_infos.py",
+                      "sha256":  "3409083d234aba8986034a819cb6c6e722c81585b78e5be7ec7cc0934c78c524",
+                      "size":  1558
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/schemas/objs_to_str_list.py",
+                      "sha256":  "53888d99d5961f9fdaa1a3995db5cb71e9fd2cad4d3b91937abe9eeea8d15d1e",
+                      "size":  507
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/schemas/recognize_subtitles.py",
+                      "sha256":  "0102896c0f406f2c306479583a41211a14f0dceb6befe2c149ce39585e245978",
+                      "size":  721
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/schemas/save_draft.py",
+                      "sha256":  "25c194e55a1ec085f87f6cda49a9af99eb0856b0952953e29f4f38c6f5b0d1a5",
+                      "size":  311
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/schemas/search_sticker.py",
+                      "sha256":  "608560679974771ee998515350e0f56298f5c80253cb8dca8a80d43ce7acb877",
+                      "size":  1363
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/schemas/str_list_to_objs.py",
+                      "sha256":  "c58cc202fb29666046e9423bed1538c2f1622998523c67dfe3fda028c4e1cb92",
+                      "size":  537
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/schemas/str_to_list.py",
+                      "sha256":  "779d94aa1574170a2d6cef4710bc845d87e9d42850fe3dd9e07512b246758383",
+                      "size":  331
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/schemas/timelines.py",
+                      "sha256":  "586eb701c6eaa4a60f6b0da9ca023994552bd9d9dd79123463c1dcdf410f4cfa",
+                      "size":  834
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/schemas/video_infos.py",
+                      "sha256":  "81b3633c1dc0fec6ffacc1e3573e8dee79fb824964a0f94f0deb05c208dd9e48",
+                      "size":  989
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/service/__init__.py",
+                      "sha256":  "5e4bdbcab8914ab8f26bbc6761fbceb1ebf0e0d2bec45d506a443816f658462d",
+                      "size":  2570
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/service/add_audios.py",
+                      "sha256":  "fb2b5e4d831a1d376a566410ee37a81b55621de16fb92a65204514630a1b04f3",
+                      "size":  23802
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/service/add_captions.py",
+                      "sha256":  "ba9fb3dffa16df018ba048915b8480fefc483ea990f84692eef51243514195a4",
+                      "size":  38479
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/service/add_effects.py",
+                      "sha256":  "893751a6f126c25f2587e44d402d7659eb04fd8cc87eb092e096a40a7654ce53",
+                      "size":  12118
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/service/add_filters.py",
+                      "sha256":  "b1825d732cfdd92cb8b1f87faeb453019e819cda4e02f86719aa5d91b2c70838",
+                      "size":  12761
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/service/add_images.py",
+                      "sha256":  "e2d867443694c766a670bc8f19a8580eeae8c5ad8a19109ce7d7918c15955377",
+                      "size":  25487
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/service/add_keyframes.py",
+                      "sha256":  "a6549aa5db971e7441b240a14452ffb7b203723440dfa18518dc0b795cf28f17",
+                      "size":  13382
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/service/add_masks.py",
+                      "sha256":  "1e1a0d715ec71a375331a99c2fd85ea01620e8607ac9394a3cbbc009d5513d9d",
+                      "size":  14416
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/service/add_sticker.py",
+                      "sha256":  "0a7d11198d522e835712ac2d0e6f7717608fe72537f57fbc78adc82a82de4e5e",
+                      "size":  8359
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/service/add_text_style.py",
+                      "sha256":  "4bee76d17b850a204da04518213fe285cba733cb16dbd8ba88b580cc7e9b4155",
+                      "size":  8914
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/service/add_videos.py",
+                      "sha256":  "a45b26896a7599414c8454efc9786c2f18ce74e65cc060744a1ab1f48da0a872",
+                      "size":  33111
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/service/audio_infos.py",
+                      "sha256":  "a3f58a77b9f621b7e8c1b7fc5da6c3b49f430dcf8ce51b0780d86c5640463eca",
+                      "size":  1881
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/service/audio_timelines.py",
+                      "sha256":  "fb552f0056a3e19249359af72f096a6e2ce34356219ec08469d939c304fb7b42",
+                      "size":  3524
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/service/caption_infos.py",
+                      "sha256":  "e35ea9065c9589874a28cbe28a641d1fd8906baf1e47dd3ff427560a5b254d6c",
+                      "size":  5263
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/service/create_draft.py",
+                      "sha256":  "785fabf6147902bf60df7b5829d1a2ef33ad4b7f4628a9481e12e9999e677feb",
+                      "size":  2905
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/service/easy_create_material.py",
+                      "sha256":  "58c5a8d4faf664dae2909743bad52a70b834a4b8da6f81b7de085c82ba958d6e",
+                      "size":  15738
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/service/effect_infos.py",
+                      "sha256":  "5ed0b35cb977a67d316a8c301f78b20895330704d0abae3755dd4eaf4388031e",
+                      "size":  1488
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/service/filter_infos.py",
+                      "sha256":  "4f68d08a44123ae3924f06fac81a58fbe4ea75288e7405c4a57fb1265a58208a",
+                      "size":  1988
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/service/gen_video.py",
+                      "sha256":  "c03ebbf9344c2ef5adf13a8c53ecaf532025db1c603437c67a4e14645de56af6",
+                      "size":  4277
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/service/get_audio_duration.py",
+                      "sha256":  "27cb1eafd1d1c1a75c151a0946e3c1b1987cdf616c602ca0a5f280722c2c4c4c",
+                      "size":  2298
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/service/get_draft.py",
+                      "sha256":  "976f0bf73d4db5ddb1ec29bb344d340a53eb300dbee70a5d582921246d186323",
+                      "size":  2130
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/service/get_effects.py",
+                      "sha256":  "0783a6eba7cb1a792fdb610ba31f1a7bdeb469527693f59d93a0a3fe67a75ee2",
+                      "size":  2747
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/service/get_filters.py",
+                      "sha256":  "e06cd5add093f6fbd37d366c836698606cdfb852bd4377856fe227ddf2d1c228",
+                      "size":  2645
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/service/get_image_animations.py",
+                      "sha256":  "13a05234bff228b5aaf1e8c092b51781c345f06d8fd09aa25e79cc485ddd8586",
+                      "size":  9409
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/service/get_text_animations.py",
+                      "sha256":  "d35f6e3601a4a47452b63dc496bac2f0467bd1290ca599021c3e52cd67166446",
+                      "size":  7455
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/service/get_text_effects.py",
+                      "sha256":  "ce9a317161a8c9b010cdba981b81d5ec959634c259e89e61c890142c4f4d9ac6",
+                      "size":  5208
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/service/get_url.py",
+                      "sha256":  "4598a12856385da2cae5098e42da8c09d934a2fe3b57b4511a41a6fd458132e6",
+                      "size":  883
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/service/imgs_infos.py",
+                      "sha256":  "993b7155c9acb0726e079599b6af11916ae863e69728a8fae4637f7d42a3f6c5",
+                      "size":  5583
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/service/keyframes_infos.py",
+                      "sha256":  "cbd48b8ad21cb3ce4bd7e61982b4b16819d0dd40611a31bc7e70b0d17fce6809",
+                      "size":  3731
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/service/objs_to_str_list.py",
+                      "sha256":  "3b0d79d98d1a6fcd37065c4674da9363c6bd0cbca57f3ca71d02c303304eb4ef",
+                      "size":  961
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/service/recognize_subtitles.py",
+                      "sha256":  "3e57fe04b242a3cc1e2978ba21749b597cef7830543d501a01577bafbcae5405",
+                      "size":  1206
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/service/save_draft.py",
+                      "sha256":  "49575e6eaa50052cc6387e26af5463d9d534c72eabf97adf4ce319cef6838695",
+                      "size":  2796
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/service/search_sticker.py",
+                      "sha256":  "bed008f26afe3419a980edece195a3b6544870cc599aee61766adc2433c37727",
+                      "size":  1930
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/service/str_list_to_objs.py",
+                      "sha256":  "98950e9fcf3d5a8bea3f5419d3aa085517833b1c9f2c0a0e85f19b9b45a066c8",
+                      "size":  914
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/service/str_to_list.py",
+                      "sha256":  "d3941ed1efce9b02f60014de09fefaf84c1aa290109d6782d7681cff31f6df4f",
+                      "size":  896
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/service/text_effect_map_generated.py",
+                      "sha256":  "46772c713ecf13146c69c91d5a89c69aba1f620e52c2ea14fc636db59b9dc770",
+                      "size":  178306
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/service/timelines.py",
+                      "sha256":  "c3efe3e23d4b11f5da8155125ee135a272c0845c3317d1500cad542883a4ae9c",
+                      "size":  1475
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/service/video_infos.py",
+                      "sha256":  "6d720eea79c5e24ba8ce750d9eb48b94977197838ae37a91a0d7559dffdc797a",
+                      "size":  2653
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/utils/__init__.py",
+                      "sha256":  "3f286ac0b3f22e333c36f0a022fb40f3fc604824dff41070fab48b59ff5d4775",
+                      "size":  148
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/utils/cos.py",
+                      "sha256":  "a91034d0491731a022101ca16664e67bee771c549077d9e26fd01a68142a6804",
+                      "size":  2829
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/utils/download.py",
+                      "sha256":  "d17c7eafda50d16ce6774fef15457480b9f31ba5792968de03e1de26e7602e9c",
+                      "size":  34118
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/utils/draft_cache.py",
+                      "sha256":  "65d11f549019b1c2f3890008ea7de27f473f0811b10272927d312bd1a067de37",
+                      "size":  836
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/utils/draft_downloader.py",
+                      "sha256":  "0659e1cdfa3fe9904bed06a204b22471da4d0e2dee25606aa37a72448e73b2a9",
+                      "size":  38809
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/utils/draft_lock_manager.py",
+                      "sha256":  "0a62bf3fbb5194767d64d4d45014205c9ce05196653838e89078bfebd9483a6e",
+                      "size":  11158
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/utils/helper.py",
+                      "sha256":  "e563ff66ff1f38adf8c6db4afd3c0420765a1d5b9b6cd88dc9cedfc388c00a9a",
+                      "size":  1296
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/utils/keyframe_value.py",
+                      "sha256":  "6a95e05c3bbc1f22f96ca28477f200160034ec653719e865c03520026abe7121",
+                      "size":  688
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/utils/logger.py",
+                      "sha256":  "5d3c7387173a5e1e961b4abab5a84c2fe121d835d5d618cd2bbe1762e9a2a95b",
+                      "size":  2574
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/utils/media.py",
+                      "sha256":  "709cb7a281956114eafe16b9fc1d2c65874e98cb26f21dcce2241934ca219df4",
+                      "size":  3115
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/utils/oss.py",
+                      "sha256":  "4d6e7b34e4ea38802ede6cb598ba3b340904dd3e3d46e20cc1697795c770e1e7",
+                      "size":  3553
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/utils/points.py",
+                      "sha256":  "3484fda736177911cf46275212fd3e6b4ce49352c85d80fa124f1540b565a1f5",
+                      "size":  6728
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/utils/storage_upload_retry.py",
+                      "sha256":  "a8d109dc1c117c0be543f71db2a02edacddf3899ad2e650238fbe0b5b59ca814",
+                      "size":  4049
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/utils/trace_context.py",
+                      "sha256":  "45a7583973d91b93d1728c8deb4c2cde51f1f2a212305b5c9b891bd528bfd70d",
+                      "size":  3345
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/utils/upload_file.py",
+                      "sha256":  "3543db7ff34c7007f06212d5980d21d3923b2c49409e626a90201c568c8168e9",
+                      "size":  2313
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/utils/video_task_manager.py",
+                      "sha256":  "0af0f059bf003acaeea787c2390e15b4397902ad3420f58617f6debf492b3c25",
+                      "size":  26981
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/utils/video_task_store.py",
+                      "sha256":  "9aeb4637513fb3a32f52c769677aa40be4686f6b13f0fa3802be2c2d05c5dd6e",
+                      "size":  5451
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/template/default/draft_agency_config.json",
+                      "sha256":  "14ef056fbd90cb0abbf4381c33f1f63008ba5af9ad8203109a675e91a45d5fb0",
+                      "size":  83
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/template/default/draft_info.json",
+                      "sha256":  "f58fea15fc3495cb4a0ea3d823a5865f2af1cdb4b8d62ed702c6729983d9aa60",
+                      "size":  2307
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/template/default/draft_info.json.bak",
+                      "sha256":  "7ab43164b1e8e556c3b831b5958bbc0028c187344148703aade128c4b7848ed3",
+                      "size":  2650
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/template/default/draft_meta_info.json",
+                      "sha256":  "39c76d80a835c6c6ec985cc93b26c83ebc9b0a29e3057a108e798668115d6475",
+                      "size":  1122
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/template/default/draft_settings",
+                      "sha256":  "79d057f80b12acdd171755a5053c3a6e995b79432f0a7ac0923589209d5ccdc9",
+                      "size":  41
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/template/default/template.tmp",
+                      "sha256":  "7ab43164b1e8e556c3b831b5958bbc0028c187344148703aade128c4b7848ed3",
+                      "size":  2650
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/template/default2/attachment_pc_common.json",
+                      "sha256":  "de96586a52f5a04f69a4ef9e5c74910066166eaf6a6d48875c28f6fee123ec8b",
+                      "size":  90
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/template/default2/draft_agency_config.json",
+                      "sha256":  "14ef056fbd90cb0abbf4381c33f1f63008ba5af9ad8203109a675e91a45d5fb0",
+                      "size":  83
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/template/default2/draft_content.json",
+                      "sha256":  "429287d9434cf2b81332bc020b2288cd4ffb25bac53d62aea149eb5454a6ba3b",
+                      "size":  4071
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/template/default2/draft_info.json",
+                      "sha256":  "ab4af097cbc2c7ff21e46667e8a5966503960cb5a79ac5f01c84601ef5920f43",
+                      "size":  4071
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/template/default2/draft_meta_info.json",
+                      "sha256":  "624968f4f57ca2cb184a98d5f7e6be8b5c1b7f046d6bf1d97c734ef1f0722a07",
+                      "size":  2079
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/template/default2/template.tmp",
+                      "sha256":  "e319a40c471d54be91acb206af94b8c0f3179b73c6c0e177c1bf8ee73074a831",
+                      "size":  3408
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/template/readme.md",
+                      "sha256":  "1b4a1545d1215362cd07b185838cfd8640b43b5ea9595b7f4851dca1760b8253",
+                      "size":  160
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/uv.lock",
+                      "sha256":  "af923774b6f0ce14dd5dd4f2953f1773a7ff7ae428a92d8681c03542d9357488",
+                      "size":  221223
                   },
                   {
                       "path":  "launch-flow-chrome.bat",
@@ -408,8 +1309,8 @@
                   },
                   {
                       "path":  "start-runtime.ps1",
-                      "sha256":  "babcddb773d419d70e2599bcee30ff6da87e861eabc50a04d9fcab9870ee88f6",
-                      "size":  11760
+                      "sha256":  "5dfbdd6ff97bef51a6d6ea53d179a53856b8b1401c93791263c77167bb3500b3",
+                      "size":  15780
                   },
                   {
                       "path":  "templates/脚本拆镜模板.xlsx",
@@ -438,8 +1339,8 @@
                   },
                   {
                       "path":  "update-from-git.ps1",
-                      "sha256":  "21c804caa06d0e28eacc96559912c2d6e478230010b7badd0cc71ba66e4d3354",
-                      "size":  12616
+                      "sha256":  "ccca4275f54a2bfef872b14a5e1573554c78fade01e02ecbafe4f49b666965ea",
+                      "size":  12827
                   },
                   {
                       "path":  "update-meiao.bat",

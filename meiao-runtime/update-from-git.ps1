@@ -11,7 +11,13 @@ $ErrorActionPreference = "Stop"
 
 $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $preserveTopLevel = @("storage", "config.local.json", "logs", "drafts", "media")
-$preserveNestedPaths = @("integrations\upstream", "integrations\capcut_mate\upstream")
+$preserveNestedPaths = @(
+  "integrations\upstream",
+  "integrations\capcut_mate\upstream\capcut-mate-main\output",
+  "integrations\capcut_mate\upstream\capcut-mate-main\logs",
+  "integrations\capcut_mate\upstream\capcut-mate-main\db",
+  "integrations\capcut_mate\upstream\capcut-mate-main\temp"
+)
 
 if ([string]::IsNullOrWhiteSpace($TargetRoot)) {
   $TargetRoot = $scriptRoot
