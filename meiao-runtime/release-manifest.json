@@ -1,6 +1,6 @@
 {
-    "version":  "20260624-141559",
-    "createdAt":  "2026-06-24T06:16:03.0895745Z",
+    "version":  "20260624-151335",
+    "createdAt":  "2026-06-24T07:13:37.8589116Z",
     "channel":  "git-update",
     "payloadMode":  "partial",
     "repository":  "https://github.com/gearaldblynn-lang/meiao-runtime-update-channel.git",
@@ -44,7 +44,7 @@
                              "integrations/capcut_mate/upstream"
                          ],
     "fileCount":  81,
-    "payloadHash":  "6e33a06efa65b74087bdd268774601b88e60b5b179533807f2a2bd50549c0c40",
+    "payloadHash":  "600174a9699843a1807f3f64fad0a6f6fd5c3bbf18d335b3e229312ed9a59eeb",
     "files":  [
                   {
                       "path":  "backup-runtime-data.ps1",
@@ -62,28 +62,28 @@
                       "size":  71
                   },
                   {
-                      "path":  "frontend/assets/AIOutput-AFTrHwQO.js",
-                      "sha256":  "32089f84274daf53434dec81b54b833382fa5117f062813a23cc58dbb3bfafc4",
+                      "path":  "frontend/assets/AIOutput-N-lUv5T4.js",
+                      "sha256":  "7310f5a43e6b0ed68642b16603c0dd60a14efdf46adc51f6e7add83dcd687fbb",
                       "size":  49918
                   },
                   {
-                      "path":  "frontend/assets/CopyClean-Bujkkqc2.js",
-                      "sha256":  "b005704aafa0931b8309dcc4b5288a004e9d46390872f1498de11d00a6755e6a",
+                      "path":  "frontend/assets/CopyClean-Bh2xQTaS.js",
+                      "sha256":  "34ca56888be203b19bac82e608bf07f96b4dc8f9df0331898d1df26f632aa8d1",
                       "size":  47077
                   },
                   {
-                      "path":  "frontend/assets/draftTemplates-Cs60KCYk.js",
-                      "sha256":  "cb615f33f819085369f710a595bee72ccde2397864fdfb940a21287432b14886",
+                      "path":  "frontend/assets/draftTemplates-BKVysujU.js",
+                      "sha256":  "b2755bf47cd688721ba0876736599ca92e46d1207550aa2840d5851e3713a4b7",
                       "size":  17278
                   },
                   {
-                      "path":  "frontend/assets/DraftTemplates-Dy0Ejzdj.js",
-                      "sha256":  "01e2e38423691b9c59c3fe1eddb3f505f56fc04ec929be8b32f06fdb467918c2",
+                      "path":  "frontend/assets/DraftTemplates-D6Jk1JyY.js",
+                      "sha256":  "fd35798283204e045a46675b55619f0c23913b7ca0523212b8555a078c4fd41a",
                       "size":  143887
                   },
                   {
-                      "path":  "frontend/assets/Fission-DnJQRfzH.js",
-                      "sha256":  "91aa5154990edaf616fa2a5bce99b6f3466846b286c395b40ef3b74be5b7f307",
+                      "path":  "frontend/assets/Fission-BeXpiYZV.js",
+                      "sha256":  "52e1938d387e2a81db0b705050a1035d2e02567fc24308e7a7ed30a2e2af8f5f",
                       "size":  173309
                   },
                   {
@@ -92,13 +92,13 @@
                       "size":  109092
                   },
                   {
-                      "path":  "frontend/assets/index-BQaA6yLR.js",
-                      "sha256":  "001955b1903c89a11d6b913ffcfcd5eede8d6ba06ccae20f4522100833366a00",
-                      "size":  473111
+                      "path":  "frontend/assets/index-nzRlujdC.js",
+                      "sha256":  "eeb295371ff067c9f8c89ea9448c5b44c090aecdc6193e26798f16f89ff1f43a",
+                      "size":  473109
                   },
                   {
-                      "path":  "frontend/assets/OutputTasks-B4qF9iL9.js",
-                      "sha256":  "8d8ac5e42ad5ac74747e685690ec3d2f1ee1210f3505df7f7c614f4e42313e07",
+                      "path":  "frontend/assets/OutputTasks-BcPD68Fr.js",
+                      "sha256":  "95085273d33908e9c02876d0b18e59a63aacca45ea7c56061b2e5b63ba13cd85",
                       "size":  169448
                   },
                   {
@@ -143,7 +143,7 @@
                   },
                   {
                       "path":  "frontend/index.html",
-                      "sha256":  "79d6b23f84a54714f3b5606cacfc324d2745fff90f77958d7d8e27044916693f",
+                      "sha256":  "06c6ad976e6dc7538abc335384d7241d1db959bcac8b5f788874f00f3b43ccd9",
                       "size":  560
                   },
                   {
