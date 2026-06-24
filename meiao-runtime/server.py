@@ -22925,6 +22925,36 @@ def summarize_vector_tag_task(task: dict) -> dict:
     return task
 
 
+def clear_vector_tag_tasks(task_ids: list[str], project_id: str = "") -> dict:
+    requested = [str(task_id or "").strip() for task_id in task_ids if str(task_id or "").strip()]
+    requested_set = set(requested)
+    removed: list[str] = []
+    skipped_active: list[str] = []
+    missing: list[str] = []
+    if not requested_set:
+        return {"removed": removed, "skippedActive": skipped_active, "missing": missing}
+    with JSON_STORE_WRITE_LOCK:
+        store = read_vector_tag_task_store()
+        tasks = store.setdefault("tasks", {})
+        for task_id in requested:
+            task = tasks.get(task_id)
+            if not isinstance(task, dict):
+                missing.append(task_id)
+                continue
+            if project_id and str(task.get("projectId") or "") != project_id:
+                missing.append(task_id)
+                continue
+            summarize_vector_tag_task(task)
+            if str(task.get("status") or "") in {"queued", "running", "canceling"}:
+                skipped_active.append(task_id)
+                continue
+            tasks.pop(task_id, None)
+            removed.append(task_id)
+        if removed:
+            write_vector_tag_task_store(store)
+    return {"removed": removed, "skippedActive": skipped_active, "missing": missing}
+
+
 def parse_vector_task_datetime(value: object) -> datetime | None:
     try:
         text = str(value or "").strip()
@@ -28193,6 +28223,9 @@ class Handler(BaseHTTPRequestHandler):
         if parsed.path == "/api/vectors/tag-tasks/cancel":
             self.handle_vector_tag_task_cancel()
             return
+        if parsed.path == "/api/vectors/tag-tasks/clear":
+            self.handle_vector_tag_task_clear()
+            return
         if parsed.path == "/api/vectors/prune":
             self.handle_prune_vectors()
             return
@@ -31573,6 +31606,17 @@ class Handler(BaseHTTPRequestHandler):
                 self.write_json(404, {"error": "任务不存在。"})
                 return
             self.write_json(200, {"task": task})
+        except Exception as exc:
+            self.write_json(500, {"error": str(exc)})
+
+    def handle_vector_tag_task_clear(self) -> None:
+        try:
+            content_length = int(self.headers.get("Content-Length", "0"))
+            payload = json.loads(self.rfile.read(content_length).decode("utf-8")) if content_length else {}
+            raw_task_ids = payload.get("taskIds")
+            task_ids = raw_task_ids if isinstance(raw_task_ids, list) else []
+            project_id = str(payload.get("projectId") or "").strip()
+            self.write_json(200, clear_vector_tag_tasks(task_ids, project_id=project_id))
         except Exception as exc:
             self.write_json(500, {"error": str(exc)})
 

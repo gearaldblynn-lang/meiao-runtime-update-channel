@@ -18,5 +18,9 @@ async def tag_tasks_cancel(legacy_proxy: LegacyProxy | None, request: Request, h
     return await invoke(legacy_proxy, request, headers)
 
 
+async def tag_tasks_clear(legacy_proxy: LegacyProxy | None, request: Request, headers: dict[str, str]) -> Response:
+    return await invoke(legacy_proxy, request, headers)
+
+
 async def prune(legacy_proxy: LegacyProxy | None, request: Request, headers: dict[str, str]) -> Response:
     return await invoke(legacy_proxy, request, headers)

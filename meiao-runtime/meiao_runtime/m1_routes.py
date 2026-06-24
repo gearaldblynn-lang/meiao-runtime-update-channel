@@ -478,6 +478,10 @@ def register(app: FastAPI, legacy_globals: dict[str, Any], runtime_error_respons
     async def vectors_tag_tasks_cancel(request: Request) -> Response:
         return await vector_mutation_runtime.tag_tasks_cancel(legacy_proxy, request, ANALYSIS_HEADERS)
 
+    @app.post("/api/vectors/tag-tasks/clear")
+    async def vectors_tag_tasks_clear(request: Request) -> Response:
+        return await vector_mutation_runtime.tag_tasks_clear(legacy_proxy, request, ANALYSIS_HEADERS)
+
     @app.post("/api/vectors/prune")
     async def vectors_prune(request: Request) -> Response:
         return await vector_mutation_runtime.prune(legacy_proxy, request, ANALYSIS_HEADERS)
