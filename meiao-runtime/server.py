@@ -929,6 +929,7 @@ def sanitize_media_library_item(item: dict) -> dict:
 
 def merge_media_library_items(primary: list[dict], fallback: list[dict]) -> list[dict]:
     by_key: dict[str, dict] = {}
+    alias_to_key: dict[str, str] = {}
     loose: list[dict] = []
     for item in [*primary, *fallback]:
         if not isinstance(item, dict):
@@ -936,20 +937,43 @@ def merge_media_library_items(primary: list[dict], fallback: list[dict]) -> list
         if is_stale_local_placeholder(item):
             continue
         item = sanitize_media_library_item(item)
-        key = str(item.get("backendMediaId") or item.get("id") or item.get("remoteVideoUrl") or "").strip()
+        aliases = [
+            str(item.get("backendMediaId") or "").strip(),
+            str(item.get("id") or "").strip(),
+            str(item.get("remoteVideoUrl") or "").strip(),
+        ]
+        aliases = [alias for alias in aliases if alias]
+        key = aliases[0] if aliases else ""
         if not key:
             loose.append(item)
             continue
+        matched_key = next((alias_to_key[alias] for alias in aliases if alias in alias_to_key), key)
+        key = matched_key
         previous = by_key.get(key)
         if previous is None:
             by_key[key] = item
+            for alias in aliases:
+                alias_to_key[alias] = key
             continue
         item_time = client_item_time(item)
         previous_time = client_item_time(previous)
         if item_time > previous_time or (item_time == previous_time and media_item_richness(item) >= media_item_richness(previous)):
-            by_key[key] = {**previous, **item}
+            merged_item = {**previous, **item}
         else:
-            by_key[key] = {**item, **previous}
+            merged_item = {**item, **previous}
+        final_key = str(merged_item.get("backendMediaId") or merged_item.get("id") or merged_item.get("remoteVideoUrl") or key).strip()
+        if final_key != key:
+            by_key.pop(key, None)
+            key = final_key
+        by_key[key] = merged_item
+        for alias in [
+            str(merged_item.get("backendMediaId") or "").strip(),
+            str(merged_item.get("id") or "").strip(),
+            str(merged_item.get("remoteVideoUrl") or "").strip(),
+            *aliases,
+        ]:
+            if alias:
+                alias_to_key[alias] = key
     merged = [*by_key.values(), *loose]
     return sorted(merged, key=client_item_time, reverse=True)
 
@@ -24039,10 +24063,7 @@ def openai_compatible_chat_completion(profile: dict, messages: list[dict], *, st
                         if url:
                             extra = {k: v for k, v in video_url.items() if k != "url"}
                             prepared_url = prepare_analysis_video_url_for_model(url, profile)
-                            if use_kie_unified_media:
-                                content.append({"type": "image_url", "image_url": {"url": prepared_url}})
-                            else:
-                                content.append({"type": "video_url", "video_url": {"url": prepared_url, **extra}})
+                            content.append({"type": "video_url", "video_url": {"url": prepared_url, **extra}})
             if content:
                 payload_messages.append({"role": message.get("role"), "content": content})
 

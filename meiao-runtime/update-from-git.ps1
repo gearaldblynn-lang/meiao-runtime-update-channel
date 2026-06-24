@@ -249,6 +249,68 @@ function Apply-Payload {
   Copy-Entry (Join-Path $PayloadRoot "release-manifest.json") (Join-Path $RuntimeRoot "release-manifest.json")
 }
 
+function Test-ProcessBelongsToRuntime {
+  param(
+    [int]$ProcessId,
+    [string]$RuntimeRoot
+  )
+  $resolvedRoot = (Resolve-FullPath $RuntimeRoot).TrimEnd([char]"\").ToLowerInvariant()
+  try {
+    $processInfo = Get-CimInstance Win32_Process -Filter ("ProcessId={0}" -f $ProcessId) -ErrorAction Stop
+  } catch {
+    return $false
+  }
+  if (-not $processInfo) {
+    return $false
+  }
+  $exe = [string]($processInfo.ExecutablePath)
+  $commandLine = [string]($processInfo.CommandLine)
+  return (
+    $exe.ToLowerInvariant().StartsWith($resolvedRoot) -or
+    $commandLine.ToLowerInvariant().Contains($resolvedRoot)
+  )
+}
+
+function Stop-RunningRuntime {
+  param([string]$RuntimeRoot)
+  $pidFile = Join-Path $RuntimeRoot "runtime.pid"
+  if (-not (Test-Path -LiteralPath $pidFile)) {
+    return
+  }
+  $pidText = [System.IO.File]::ReadAllText($pidFile).Trim()
+  $runtimePid = 0
+  if (-not [int]::TryParse($pidText, [ref]$runtimePid)) {
+    Remove-Item -LiteralPath $pidFile -Force -ErrorAction SilentlyContinue
+    return
+  }
+  $process = Get-Process -Id $runtimePid -ErrorAction SilentlyContinue
+  if (-not $process) {
+    Remove-Item -LiteralPath $pidFile -Force -ErrorAction SilentlyContinue
+    return
+  }
+  if (-not (Test-ProcessBelongsToRuntime $runtimePid $RuntimeRoot)) {
+    throw "runtime.pid points to a process outside this runtime; refusing to stop pid $runtimePid."
+  }
+  Write-Host "Stopping running runtime pid $runtimePid before update..."
+  Stop-Process -Id $runtimePid -Force -ErrorAction Stop
+  Wait-Process -Id $runtimePid -Timeout 10 -ErrorAction SilentlyContinue
+  Remove-Item -LiteralPath $pidFile -Force -ErrorAction SilentlyContinue
+}
+
+function Start-UpdatedRuntime {
+  param([string]$RuntimeRoot)
+  $startScript = Join-Path $RuntimeRoot "start-runtime.ps1"
+  if (-not (Test-Path -LiteralPath $startScript -PathType Leaf)) {
+    Write-Host "Updated payload applied. start-runtime.ps1 was not found; start the runtime manually."
+    return
+  }
+  Write-Host "Starting updated runtime..."
+  & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $startScript
+  if ($LASTEXITCODE -ne 0) {
+    throw "Updated files were applied, but start-runtime.ps1 failed with exit code $LASTEXITCODE."
+  }
+}
+
 $git = Get-Command git -ErrorAction SilentlyContinue
 if (-not $git) {
   throw "Git is required for updates. Please install Git for Windows, then run this script again."
@@ -311,7 +373,9 @@ if (Test-Path -LiteralPath $backupFull) {
   }
 }
 $backupRuntimeRoot = Join-Path $backupFull "meiao-runtime"
+Stop-RunningRuntime $targetFull
 Apply-Payload $payloadRoot $targetFull $backupRuntimeRoot $manifest
+Start-UpdatedRuntime $targetFull
 
 Write-Host "Git runtime update applied:"
 Write-Host "  target: $targetFull"
