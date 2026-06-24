@@ -4504,6 +4504,12 @@ def get_kie_api_key(config: dict | None = None) -> str:
     key = str(kie.get("api_key") or "").strip()
     if key:
         return key
+    registry = root.get("model_registry", {}) if isinstance(root.get("model_registry"), dict) else {}
+    registry_credentials = registry.get("credentials", {}) if isinstance(registry.get("credentials"), dict) else {}
+    registry_kie = registry_credentials.get("kie", {}) if isinstance(registry_credentials.get("kie"), dict) else {}
+    key = str(registry_kie.get("api_key") or "").strip()
+    if key:
+        return key
     file_upload = root.get("file_upload", {}) if isinstance(root.get("file_upload"), dict) else {}
     key = str(file_upload.get("api_key") or "").strip()
     if key:
