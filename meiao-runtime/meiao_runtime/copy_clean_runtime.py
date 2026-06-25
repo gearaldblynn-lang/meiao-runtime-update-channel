@@ -7,12 +7,179 @@ from .route_helpers import append_debug_log as _append_debug_log
 from .route_helpers import callable_or_raise as _callable
 
 
+COPY_CLEAN_MAX_DIRECT_DURATION_SECONDS = 180
+
+
+def _client_state_helpers(legacy_globals: dict[str, Any]) -> tuple[Any, Any]:
+    read_state = legacy_globals.get("read_client_state")
+    write_state = legacy_globals.get("write_client_state")
+    return read_state if callable(read_state) else None, write_state if callable(write_state) else None
+
+
+def _stable_script_id(legacy_globals: dict[str, Any], item_id: str) -> str:
+    helper = legacy_globals.get("stable_script_id_from_ingest_id")
+    if callable(helper):
+        return str(helper(item_id))
+    normalized = "".join(char for char in str(item_id or "").replace("IN-", "") if char.isalnum())
+    return f"S-{normalized or item_id}"
+
+
+def _persist_auto_split_record(
+    legacy_globals: dict[str, Any],
+    raw_item: dict[str, Any],
+    backend_media_id: str,
+    split_result: dict[str, Any],
+) -> str:
+    read_state, write_state = _client_state_helpers(legacy_globals)
+    if not read_state or not write_state:
+        return ""
+
+    item_id = str(raw_item.get("id") or "").strip()
+    script_id = _stable_script_id(legacy_globals, item_id)
+    now_ms = int(time.time() * 1000)
+    segments: list[dict[str, Any]] = []
+    for segment in split_result.get("segments") if isinstance(split_result.get("segments"), list) else []:
+        if not isinstance(segment, dict):
+            continue
+        segments.append(
+            {
+                **segment,
+                "mediaId": backend_media_id,
+                "splitRunId": segment.get("splitRunId") or split_result.get("splitRunId"),
+                "copyCleanStatus": "waiting",
+                "copyCleanParentItemId": item_id,
+            }
+        )
+
+    state = read_state()
+    state = dict(state) if isinstance(state, dict) else {}
+    records = state.get("meiao-scene-split-records") if isinstance(state.get("meiao-scene-split-records"), dict) else {}
+    records = dict(records)
+    records[script_id] = {
+        "status": "done",
+        "segments": len(segments),
+        "mediaId": backend_media_id,
+        "scriptId": script_id,
+        "ingestId": item_id,
+        "source": str(raw_item.get("title") or raw_item.get("source") or backend_media_id),
+        "splitRunId": split_result.get("splitRunId"),
+        "sceneSegments": segments,
+        "updatedAt": now_ms,
+    }
+    state["meiao-scene-split-records"] = records
+    write_state(state)
+    return script_id
+
+
+def _build_auto_split_items(
+    legacy_globals: dict[str, Any],
+    raw_item: dict[str, Any],
+    backend_media_id: str,
+    duration_seconds: int,
+) -> list[dict[str, Any]]:
+    threshold = float(raw_item.get("sceneSplitThreshold") or raw_item.get("threshold") or 0.3)
+    min_scene_seconds = float(raw_item.get("minSceneSeconds") or 1.2)
+    split_result = _callable(legacy_globals, "build_scene_segments_for_media")(backend_media_id, threshold, min_scene_seconds)
+    script_id = _persist_auto_split_record(legacy_globals, raw_item, backend_media_id, split_result)
+
+    parent_item_id = str(raw_item.get("id") or "").strip()
+    segments = split_result.get("segments") if isinstance(split_result.get("segments"), list) else []
+    segment_items: list[dict[str, Any]] = []
+    for segment in segments:
+        if not isinstance(segment, dict):
+            continue
+        segment_id = str(segment.get("segmentId") or f"segment-{segment.get('index') or len(segment_items) + 1}").strip()
+        segment_url = str(segment.get("url") or "").strip()
+        if not segment_id or not segment_url:
+            continue
+        segment_items.append(
+            {
+                **raw_item,
+                "id": f"{parent_item_id}::scene::{segment_id}",
+                "duration": str(segment.get("duration") or ""),
+                "sourceVideoUrl": segment_url,
+                "remoteVideoUrl": segment_url,
+                "remotePosterUrl": segment.get("posterUrl") or raw_item.get("remotePosterUrl"),
+                "originalVideoUrl": segment_url,
+                "originalPosterUrl": segment.get("posterUrl") or raw_item.get("originalPosterUrl") or raw_item.get("remotePosterUrl"),
+                "backendMediaId": backend_media_id,
+                "copyCleanSegment": {
+                    "parentItemId": parent_item_id,
+                    "scriptId": script_id,
+                    "segmentId": segment_id,
+                    "segmentIndex": segment.get("index"),
+                    "splitRunId": segment.get("splitRunId") or split_result.get("splitRunId"),
+                    "originalUrl": segment_url,
+                    "originalPosterUrl": segment.get("posterUrl"),
+                    "parentDuration": duration_seconds,
+                },
+            }
+        )
+    return segment_items
+
+
+def _update_scene_segment_from_copy_clean_task(legacy_globals: dict[str, Any], task: dict[str, Any]) -> None:
+    segment_meta = task.get("copyCleanSegment")
+    if not isinstance(segment_meta, dict):
+        return
+    read_state, write_state = _client_state_helpers(legacy_globals)
+    if not read_state or not write_state:
+        return
+
+    script_id = str(segment_meta.get("scriptId") or "").strip()
+    segment_id = str(segment_meta.get("segmentId") or "").strip()
+    segment_index = segment_meta.get("segmentIndex")
+    state = read_state()
+    if not isinstance(state, dict):
+        return
+    state = dict(state)
+    records = state.get("meiao-scene-split-records") if isinstance(state.get("meiao-scene-split-records"), dict) else {}
+    records = dict(records)
+    state["meiao-scene-split-records"] = records
+    candidate_records = [records.get(script_id)] if script_id and isinstance(records.get(script_id), dict) else records.values()
+    changed = False
+    for record in candidate_records:
+        if not isinstance(record, dict):
+            continue
+        segments = record.get("sceneSegments") if isinstance(record.get("sceneSegments"), list) else []
+        for segment in segments:
+            if not isinstance(segment, dict):
+                continue
+            matches_segment_id = segment_id and str(segment.get("segmentId") or "").strip() == segment_id
+            matches_index = segment_index is not None and str(segment.get("index") or "") == str(segment_index)
+            if not matches_segment_id and not matches_index:
+                continue
+            if not segment.get("originalUrl"):
+                segment["originalUrl"] = segment.get("url") or segment_meta.get("originalUrl")
+            if not segment.get("originalPosterUrl"):
+                segment["originalPosterUrl"] = segment.get("posterUrl") or segment_meta.get("originalPosterUrl")
+            segment["copyCleanStatus"] = task.get("status")
+            segment["copyCleanTaskId"] = task.get("taskId")
+            segment["copyCleanItemId"] = task.get("itemId")
+            if task.get("status") == "success" and task.get("resultLocalUrl"):
+                segment["url"] = task.get("resultLocalUrl")
+                if task.get("resultPosterUrl"):
+                    segment["posterUrl"] = task.get("resultPosterUrl")
+            if task.get("status") == "failed":
+                segment["copyCleanError"] = task.get("emsg") or task.get("stage") or "Copy-clean failed"
+            segment["updatedAt"] = int(time.time() * 1000)
+            record["updatedAt"] = segment["updatedAt"]
+            changed = True
+            break
+    if changed:
+        write_state(state)
+
+
 def submit(legacy_globals: dict[str, Any], items: list[Any]) -> dict[str, Any]:
     store = _callable(legacy_globals, "read_copy_clean_store")()
     submitted: list[dict[str, Any]] = []
     failed: list[dict[str, Any]] = []
 
-    for raw_item in items:
+    pending_items = [item for item in items if isinstance(item, dict)]
+    index = 0
+    while index < len(pending_items):
+        raw_item = pending_items[index]
+        index += 1
         if not isinstance(raw_item, dict):
             continue
         item_id = str(raw_item.get("id") or "").strip()
@@ -24,26 +191,53 @@ def submit(legacy_globals: dict[str, Any], items: list[Any]) -> dict[str, Any]:
 
         local_media_dir = legacy_globals["MEDIA_ROOT"] / backend_media_id if backend_media_id else None
         local_video_path = _callable(legacy_globals, "find_original_media_video")(local_media_dir) if local_media_dir else None
+        source_local_path = None
+        if source_url and _callable(legacy_globals, "is_local_media_url")(source_url):
+            source_local_path = _callable(legacy_globals, "media_url_to_file_path")(source_url)
+        upload_video_path = source_local_path or local_video_path
         duration_seconds = _callable(legacy_globals, "parse_duration_seconds")(str(raw_item.get("duration") or "0:00"))
         width = 720
         height = 1280
         file_size_mb = None
-        if local_video_path:
-            duration_seconds = int(_callable(legacy_globals, "probe_video_duration")(local_video_path) or duration_seconds or 0)
-            resolution_info = _callable(legacy_globals, "probe_video_resolution")(local_video_path)
+        if upload_video_path:
+            duration_seconds = int(_callable(legacy_globals, "probe_video_duration")(upload_video_path) or duration_seconds or 0)
+            resolution_info = _callable(legacy_globals, "probe_video_resolution")(upload_video_path)
             if resolution_info:
                 width, height = resolution_info
-            file_size_mb = round(local_video_path.stat().st_size / (1024 * 1024), 2)
+            file_size_mb = round(upload_video_path.stat().st_size / (1024 * 1024), 2)
         else:
             file_size_mb = float(raw_item.get("fileSize") or 0) or None
             if not source_url or not source_url.startswith(("http://", "https://")):
                 failed.append({"itemId": item_id, "error": "Missing accessible video URL"})
                 continue
 
-        if (not source_url or _callable(legacy_globals, "is_local_media_url")(source_url)) and local_video_path:
+        if (
+            not isinstance(raw_item.get("copyCleanSegment"), dict)
+            and backend_media_id
+            and local_video_path
+            and upload_video_path == local_video_path
+            and duration_seconds > COPY_CLEAN_MAX_DIRECT_DURATION_SECONDS
+        ):
+            try:
+                segment_items = _build_auto_split_items(legacy_globals, raw_item, backend_media_id, duration_seconds)
+                if not segment_items:
+                    failed.append({"itemId": item_id, "error": "Scene split did not produce copy-clean segments"})
+                    continue
+                pending_items[index:index] = segment_items
+                _append_debug_log(
+                    legacy_globals,
+                    "api.copy_clean.auto_split",
+                    {"itemId": item_id, "mediaId": backend_media_id, "duration": duration_seconds, "segments": len(segment_items)},
+                )
+                continue
+            except Exception as error:
+                failed.append({"itemId": item_id, "error": str(error)})
+                continue
+
+        if (not source_url or _callable(legacy_globals, "is_local_media_url")(source_url)) and upload_video_path:
             upload_path = str(_callable(legacy_globals, "get_file_upload_config")()["upload_path"] or "copy-clean/videos").strip()
-            upload_name = f"{_callable(legacy_globals, 'unique_file_token')('copy-clean-upload', backend_media_id or item_id)}{local_video_path.suffix.lower() or '.mp4'}"
-            source_url = _callable(legacy_globals, "upload_file_to_kie")(local_video_path, upload_name, upload_path)
+            upload_name = f"{_callable(legacy_globals, 'unique_file_token')('copy-clean-upload', backend_media_id or item_id)}{upload_video_path.suffix.lower() or '.mp4'}"
+            source_url = _callable(legacy_globals, "upload_file_to_kie")(upload_video_path, upload_name, upload_path)
         if not source_url:
             failed.append({"itemId": item_id, "error": "Missing public video URL"})
             continue
@@ -96,6 +290,9 @@ def submit(legacy_globals: dict[str, Any], items: list[Any]) -> dict[str, Any]:
                 "createdAt": int(time.time() * 1000),
                 "updatedAt": int(time.time() * 1000),
             }
+            if isinstance(raw_item.get("copyCleanSegment"), dict):
+                task["copyCleanSegment"] = raw_item["copyCleanSegment"]
+                _update_scene_segment_from_copy_clean_task(legacy_globals, task)
             _callable(legacy_globals, "save_copy_clean_task")(store, task)
             submitted.append(task)
         except Exception as error:
@@ -228,6 +425,7 @@ def progress(legacy_globals: dict[str, Any], payload: dict[str, Any], task_ids: 
             "updatedAt": int(time.time() * 1000),
         }
         tasks[task_id] = task
+        _update_scene_segment_from_copy_clean_task(legacy_globals, task)
         updated.append(task)
 
     _callable(legacy_globals, "write_copy_clean_store")(store)

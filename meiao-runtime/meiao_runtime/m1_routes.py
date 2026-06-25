@@ -166,8 +166,9 @@ def register(app: FastAPI, legacy_globals: dict[str, Any], runtime_error_respons
             log_legacy_error("api.diagnosis.extract.error", error)
             return _json(500, {"error": f"Video diagnosis extraction failed: {error}"}, ANALYSIS_HEADERS)
     @app.post("/api/copy-clean/submit")
-    async def copy_clean_submit(payload: Any = None) -> Response:
+    async def copy_clean_submit(request: Request) -> Response:
         try:
+            payload = await json_payload(request)
             data = _payload(payload)
             items = data.get("items")
             if not isinstance(items, list) or not items:
@@ -179,8 +180,9 @@ def register(app: FastAPI, legacy_globals: dict[str, Any], runtime_error_respons
             return _json(500, {"error": str(error)}, COPY_CLEAN_HEADERS)
 
     @app.post("/api/copy-clean/detect-region")
-    async def copy_clean_detect_region(payload: Any = None) -> Response:
+    async def copy_clean_detect_region(request: Request) -> Response:
         try:
+            payload = await json_payload(request)
             data = _payload(payload)
             items = data.get("items")
             if not isinstance(items, list) or not items:
@@ -192,8 +194,9 @@ def register(app: FastAPI, legacy_globals: dict[str, Any], runtime_error_respons
             return _json(500, {"error": str(error)}, COPY_CLEAN_HEADERS)
 
     @app.post("/api/copy-clean/progress")
-    async def copy_clean_progress(payload: Any = None) -> Response:
+    async def copy_clean_progress(request: Request) -> Response:
         try:
+            payload = await json_payload(request)
             data = _payload(payload)
             task_ids = data.get("taskIds")
             if not isinstance(task_ids, list) or not task_ids:
@@ -313,6 +316,10 @@ def register(app: FastAPI, legacy_globals: dict[str, Any], runtime_error_respons
     @app.get("/api/system/select-export-folder")
     async def system_select_export_folder(request: Request) -> Response:
         return await local_system_runtime.select_export_folder(legacy_proxy, request, MEDIA_HEADERS)
+
+    @app.get("/api/system/capcut/select-executable")
+    async def system_select_capcut_executable(request: Request) -> Response:
+        return await local_system_runtime.select_capcut_executable(legacy_proxy, request, MEDIA_HEADERS)
 
     @app.post("/api/system/open-local-path")
     async def system_open_local_path(request: Request) -> Response:

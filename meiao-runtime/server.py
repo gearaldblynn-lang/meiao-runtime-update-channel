@@ -161,6 +161,7 @@ def count_video_files_quick(folder_path: Path, max_count: int = 9999) -> int:
     return count
 FIXED_JIANYING_VERSION = "5.9.0.11632"
 FIXED_JIANYING_EXE = Path(r"D:\JianyingPro\5.9.0.11632\JianyingPro.exe")
+CAPCUT_EXECUTABLE_NAMES = {"jianyingpro.exe", "capcut.exe", "jianying.exe"}
 
 ARK_EMBEDDING_URL = "https://ark.cn-beijing.volces.com/api/v3/embeddings/multimodal"
 DEFAULT_ARK_MODEL = "doubao-embedding-vision-251215"
@@ -552,6 +553,30 @@ def select_folder_with_tkinter(title: str) -> str:
 
 def select_folder_with_native_dialog(title: str) -> str:
     return select_folder_with_win32_dialog(title) or select_folder_with_tkinter(title)
+
+
+def select_capcut_executable_with_native_dialog() -> str:
+    try:
+        from tkinter import Tk, filedialog
+
+        root = Tk()
+        root.withdraw()
+        root.attributes("-topmost", True)
+        try:
+            file_path = filedialog.askopenfilename(
+                title="选择剪映 5.9 程序",
+                filetypes=[
+                    ("Jianying / CapCut", "JianyingPro.exe CapCut.exe Jianying.exe"),
+                    ("Executable", "*.exe"),
+                    ("All files", "*.*"),
+                ],
+            )
+        finally:
+            root.destroy()
+        return str(file_path or "").strip()
+    except Exception as exc:
+        append_debug_log("system.select_capcut_executable.error", {"errorType": type(exc).__name__, "error": str(exc)})
+        return ""
 
 
 def sanitize_export_filename_part(value: str) -> str:
@@ -4312,10 +4337,10 @@ def build_environment_health() -> dict:
         },
         {
             "key": "fixed_jianying",
-            "label": "固定剪映版本",
-            "path": str(FIXED_JIANYING_EXE),
-            "status": "ok" if FIXED_JIANYING_EXE.exists() else "warning",
-            "message": "已找到" if FIXED_JIANYING_EXE.exists() else f"未找到固定版本 {FIXED_JIANYING_VERSION}",
+            "label": "剪映 5.9 程序",
+            "path": str(resolve_capcut_executable() or get_configured_capcut_path() or FIXED_JIANYING_EXE),
+            "status": "ok" if resolve_capcut_executable() else "warning",
+            "message": "已找到" if resolve_capcut_executable() else f"未找到可用剪映 5.9 程序",
         },
         {
             "key": "capcut_mate_files",
@@ -4552,27 +4577,95 @@ def get_kie_api_key(config: dict | None = None) -> str:
     return str(os.environ.get("FILE_UPLOAD_API_KEY") or os.environ.get("KIE_API_KEY") or "").strip()
 
 
+def get_configured_capcut_path() -> Path | None:
+    config = read_local_config()
+    settings_candidates = [
+        config.get("global_settings") if isinstance(config.get("global_settings"), dict) else {},
+        config.get("settings") if isinstance(config.get("settings"), dict) else {},
+    ]
+    for settings in settings_candidates:
+        integrations = settings.get("integrations") if isinstance(settings.get("integrations"), dict) else {}
+        raw_path = str(integrations.get("capcutPath") or "").strip()
+        if not raw_path:
+            continue
+        path = Path(raw_path).expanduser()
+        if not path.is_absolute():
+            path = BASE_DIR / path
+        return path
+    return None
+
+
+def capcut_path_version_allowed(path: Path) -> bool:
+    version = extract_capcut_version(str(path))
+    return not version or version.startswith("5.9.")
+
+
+def capcut_executable_candidates() -> list[Path]:
+    candidates: list[Path] = []
+    for env_name in ("MEIAO_CAPCUT_PATH", "CAPCUT_PATH"):
+        raw_path = str(os.environ.get(env_name) or "").strip()
+        if raw_path:
+            candidates.append(Path(raw_path).expanduser())
+    configured_path = get_configured_capcut_path()
+    if configured_path:
+        candidates.append(configured_path)
+    candidates.append(FIXED_JIANYING_EXE)
+
+    seen: set[str] = set()
+    unique: list[Path] = []
+    for candidate in candidates:
+        try:
+            key = os.path.normcase(str(candidate.resolve(strict=False)))
+        except Exception:
+            key = os.path.normcase(str(candidate))
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(candidate)
+    return unique
+
+
+def resolve_capcut_executable() -> Path | None:
+    for candidate in capcut_executable_candidates():
+        if candidate.name.lower() not in CAPCUT_EXECUTABLE_NAMES:
+            continue
+        if not candidate.exists() or not candidate.is_file():
+            continue
+        if not capcut_path_version_allowed(candidate):
+            continue
+        return candidate
+    return None
+
+
 def locate_capcut_installation() -> dict:
-    fixed_path = FIXED_JIANYING_EXE
-    exists = fixed_path.exists() and fixed_path.is_file()
-    selected_path = str(fixed_path) if exists else ""
-    version_warning = "" if exists else f"未找到固定剪映版本 {FIXED_JIANYING_VERSION}：{fixed_path}。已阻止启动其它版本。"
+    configured_path = get_configured_capcut_path()
+    candidates = capcut_executable_candidates()
+    selected = resolve_capcut_executable()
+    selected_path = str(selected) if selected else ""
+    configured_text = str(configured_path) if configured_path else ""
+    blocked_path = ""
+    if not selected:
+        blocked_path = configured_text or str(FIXED_JIANYING_EXE)
+    version_warning = ""
+    if not selected:
+        version_warning = f"未找到可用剪映 5.9 程序。请在系统集成里选择 JianyingPro.exe，或安装到默认路径：{FIXED_JIANYING_EXE}。"
 
     return {
         "path": selected_path,
-        "blockedPath": "" if exists else str(fixed_path),
-        "version": FIXED_JIANYING_VERSION if exists else "",
-        "versionAllowed": exists,
+        "blockedPath": blocked_path,
+        "version": extract_capcut_version(selected_path) or (FIXED_JIANYING_VERSION if selected and selected == FIXED_JIANYING_EXE else ""),
+        "versionAllowed": bool(selected),
         "versionWarning": version_warning,
-        "candidates": [str(fixed_path)],
-        "fixedPath": str(fixed_path),
+        "candidates": [str(item) for item in candidates],
+        "configuredPath": configured_text,
+        "fixedPath": str(FIXED_JIANYING_EXE),
         **detect_jianying_user_state(),
     }
 
 
-def stop_non_fixed_jianying_processes() -> list[dict]:
+def stop_non_fixed_jianying_processes(allowed_path: Path | None = None) -> list[dict]:
     stopped: list[dict] = []
-    fixed = str(FIXED_JIANYING_EXE).lower()
+    fixed = str((allowed_path or resolve_capcut_executable() or FIXED_JIANYING_EXE)).lower()
     try:
         import psutil  # type: ignore
     except Exception:
@@ -4674,8 +4767,8 @@ def launch_fixed_jianying() -> dict:
     capcut = locate_capcut_installation()
     capcut_path = str(capcut.get("path") or "").strip()
     if not capcut_path:
-        return {"opened": False, "error": capcut.get("versionWarning") or f"未找到固定剪映版本 {FIXED_JIANYING_VERSION}", "capcut": capcut}
-    stopped = stop_non_fixed_jianying_processes()
+        return {"opened": False, "error": capcut.get("versionWarning") or f"未找到剪映 5.9 程序", "capcut": capcut}
+    stopped = stop_non_fixed_jianying_processes(Path(capcut_path))
     try:
         subprocess.Popen(
             [capcut_path],
@@ -28004,6 +28097,9 @@ class Handler(BaseHTTPRequestHandler):
         if parsed.path == "/api/system/capcut/locate":
             self.write_json(200, locate_capcut_installation())
             return
+        if parsed.path == "/api/system/capcut/select-executable":
+            self.handle_select_capcut_executable()
+            return
         if parsed.path == "/api/system/environment":
             self.write_json(200, build_environment_health())
             return
@@ -30452,6 +30548,36 @@ class Handler(BaseHTTPRequestHandler):
         except Exception as exc:
             append_debug_log("api.system.select_export_folder.error", {"errorType": type(exc).__name__, "error": str(exc), "traceback": traceback.format_exc()})
             self.write_json(500, {"error": describe_file_operation_error("选择导出文件夹", Path(folder or "."), exc)})
+
+    def handle_select_capcut_executable(self) -> None:
+        try:
+            file_path = select_capcut_executable_with_native_dialog()
+            if not file_path:
+                self.write_json(200, {"selected": False, "path": "", "name": ""})
+                return
+            executable = Path(file_path)
+            if not executable.exists() or not executable.is_file():
+                self.write_json(400, {"error": "选择的路径不是有效程序文件。"})
+                return
+            if executable.name.lower() not in CAPCUT_EXECUTABLE_NAMES:
+                self.write_json(400, {"error": "请选择 JianyingPro.exe、CapCut.exe 或 Jianying.exe。"})
+                return
+            if not capcut_path_version_allowed(executable):
+                self.write_json(400, {"error": "检测到该路径不是剪映 5.9 版本，请选择 5.9 的 JianyingPro.exe。", "path": str(executable)})
+                return
+            self.write_json(
+                200,
+                {
+                    "selected": True,
+                    "path": str(executable),
+                    "name": executable.name,
+                    "version": extract_capcut_version(str(executable)),
+                    "versionAllowed": True,
+                },
+            )
+        except Exception as exc:
+            append_debug_log("api.system.select_capcut_executable.error", {"errorType": type(exc).__name__, "error": str(exc), "traceback": traceback.format_exc()})
+            self.write_json(500, {"error": f"选择剪映程序失败：{exc}"})
 
     def handle_check_export_folder(self) -> None:
         folder_path: Path | None = None

@@ -279,6 +279,35 @@ function Resolve-CapCutMatePython {
   return ""
 }
 
+function Resolve-ConfiguredCapCutPath {
+  $configPath = Join-Path $runtimeRoot "config.local.json"
+  if (-not (Test-Path -LiteralPath $configPath -PathType Leaf)) {
+    return ""
+  }
+  try {
+    $config = Get-Content -LiteralPath $configPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    $values = @()
+    if ($config.global_settings -and $config.global_settings.integrations) {
+      $values += [string]$config.global_settings.integrations.capcutPath
+    }
+    if ($config.settings -and $config.settings.integrations) {
+      $values += [string]$config.settings.integrations.capcutPath
+    }
+    foreach ($value in $values) {
+      if ([string]::IsNullOrWhiteSpace($value)) {
+        continue
+      }
+      if ([System.IO.Path]::IsPathRooted($value)) {
+        return $value
+      }
+      return (Join-Path $runtimeRoot $value)
+    }
+  } catch {
+    Write-StartupLog ("capcut config path read failed: {0}" -f $_.Exception.Message)
+  }
+  return ""
+}
+
 function Resolve-CapCutExecutable {
   $candidates = @()
   foreach ($envName in @("MEIAO_CAPCUT_PATH", "CAPCUT_PATH")) {
@@ -292,6 +321,10 @@ function Resolve-CapCutExecutable {
     if (-not [string]::IsNullOrWhiteSpace($value)) {
       $candidates += $value
     }
+  }
+  $configuredCapCutPath = Resolve-ConfiguredCapCutPath
+  if (-not [string]::IsNullOrWhiteSpace($configuredCapCutPath)) {
+    $candidates += $configuredCapCutPath
   }
   $candidates += @(
     "D:\JianyingPro\5.9.0.11632\JianyingPro.exe",

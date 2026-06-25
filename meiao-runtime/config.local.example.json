@@ -1,5 +1,10 @@
 {
   "dataDir": "D:/MEIAO/data",
+  "global_settings": {
+    "integrations": {
+      "capcutPath": ""
+    }
+  },
   "flow": {
     "chromePath": ""
   }
