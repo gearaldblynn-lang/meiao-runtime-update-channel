@@ -434,6 +434,13 @@ class Win32GUID(ctypes.Structure):
     ]
 
 
+class COMDLG_FILTERSPEC(ctypes.Structure):
+    _fields_ = [
+        ("pszName", ctypes.c_wchar_p),
+        ("pszSpec", ctypes.c_wchar_p),
+    ]
+
+
 def win32_guid(value: str) -> Win32GUID:
     parsed = uuid.UUID(value)
     data4 = (ctypes.c_ubyte * 8).from_buffer_copy(parsed.bytes[8:])
@@ -555,7 +562,107 @@ def select_folder_with_native_dialog(title: str) -> str:
     return select_folder_with_win32_dialog(title) or select_folder_with_tkinter(title)
 
 
-def select_capcut_executable_with_native_dialog() -> str:
+def select_capcut_executable_with_win32_dialog() -> str:
+    if os.name != "nt":
+        return ""
+    clsid_file_open_dialog = win32_guid("DC1C5A9C-E88A-4DDE-A5A1-60F82A20AEF7")
+    iid_file_dialog = win32_guid("42F85136-DB7E-439C-85F1-E4075D135FC8")
+    dialog = ctypes.c_void_p()
+    shell_item = ctypes.c_void_p()
+    path_ptr = ctypes.c_void_p()
+    co_initialized = False
+    try:
+        ole32 = ctypes.OleDLL("ole32")
+        user32 = ctypes.WinDLL("user32")
+        hr = ole32.CoInitializeEx(None, 0x2)
+        co_initialized = hr in (0, 1)
+        if hr not in (0, 1, -2147417850):
+            append_debug_log("system.select_capcut_executable.com_init_error", {"hresult": hresult_hex(hr)})
+            return ""
+
+        hr = ole32.CoCreateInstance(
+            ctypes.byref(clsid_file_open_dialog),
+            None,
+            0x1,
+            ctypes.byref(iid_file_dialog),
+            ctypes.byref(dialog),
+        )
+        if hr != 0 or not dialog.value:
+            append_debug_log("system.select_capcut_executable.create_dialog_error", {"hresult": hresult_hex(hr)})
+            return ""
+
+        vtable = ctypes.cast(dialog, ctypes.POINTER(ctypes.POINTER(ctypes.c_void_p))).contents
+        release = ctypes.WINFUNCTYPE(ctypes.c_ulong, ctypes.c_void_p)(vtable[2])
+        show = ctypes.WINFUNCTYPE(ctypes.c_long, ctypes.c_void_p, ctypes.c_void_p)(vtable[3])
+        set_file_types = ctypes.WINFUNCTYPE(ctypes.c_long, ctypes.c_void_p, ctypes.c_uint, ctypes.POINTER(COMDLG_FILTERSPEC))(vtable[4])  # IFileDialog.SetFileTypes
+        set_file_type_index = ctypes.WINFUNCTYPE(ctypes.c_long, ctypes.c_void_p, ctypes.c_uint)(vtable[5])
+        set_options = ctypes.WINFUNCTYPE(ctypes.c_long, ctypes.c_void_p, ctypes.c_uint)(vtable[9])
+        get_options = ctypes.WINFUNCTYPE(ctypes.c_long, ctypes.c_void_p, ctypes.POINTER(ctypes.c_uint))(vtable[10])
+        set_title = ctypes.WINFUNCTYPE(ctypes.c_long, ctypes.c_void_p, ctypes.c_wchar_p)(vtable[17])
+        set_ok_button_label = ctypes.WINFUNCTYPE(ctypes.c_long, ctypes.c_void_p, ctypes.c_wchar_p)(vtable[18])
+        get_result = ctypes.WINFUNCTYPE(ctypes.c_long, ctypes.c_void_p, ctypes.POINTER(ctypes.c_void_p))(vtable[20])
+
+        filters = (COMDLG_FILTERSPEC * 3)(
+            COMDLG_FILTERSPEC("Jianying / CapCut", "JianyingPro.exe;CapCut.exe;Jianying.exe"),
+            COMDLG_FILTERSPEC("Executable", "*.exe"),
+            COMDLG_FILTERSPEC("All files", "*.*"),
+        )
+        set_file_types(dialog, 3, filters)
+        set_file_type_index(dialog, 1)
+        options = ctypes.c_uint()
+        hr = get_options(dialog, ctypes.byref(options))
+        if hr == 0:
+            set_options(dialog, options.value | 0x40 | 0x800 | 0x1000)
+        set_title(dialog, "选择剪映 5.9 程序")
+        set_ok_button_label(dialog, "选择程序")
+
+        owner = ctypes.c_void_p(user32.GetForegroundWindow())
+        hr = show(dialog, owner)
+        if hr != 0:
+            if ctypes.c_uint32(hr).value != 0x800704C7:
+                append_debug_log("system.select_capcut_executable.show_error", {"hresult": hresult_hex(hr)})
+            return ""
+
+        hr = get_result(dialog, ctypes.byref(shell_item))
+        if hr != 0 or not shell_item.value:
+            append_debug_log("system.select_capcut_executable.result_error", {"hresult": hresult_hex(hr)})
+            return ""
+
+        item_vtable = ctypes.cast(shell_item, ctypes.POINTER(ctypes.POINTER(ctypes.c_void_p))).contents
+        item_release = ctypes.WINFUNCTYPE(ctypes.c_ulong, ctypes.c_void_p)(item_vtable[2])
+        get_display_name = ctypes.WINFUNCTYPE(ctypes.c_long, ctypes.c_void_p, ctypes.c_uint, ctypes.POINTER(ctypes.c_void_p))(item_vtable[5])
+        hr = get_display_name(shell_item, 0x80058000, ctypes.byref(path_ptr))
+        if hr != 0:
+            append_debug_log("system.select_capcut_executable.path_error", {"hresult": hresult_hex(hr)})
+            return ""
+        return ctypes.wstring_at(path_ptr.value).strip() if path_ptr.value else ""
+    except Exception as exc:
+        append_debug_log("system.select_capcut_executable.win32_error", {"error": str(exc), "traceback": traceback.format_exc()})
+        return ""
+    finally:
+        try:
+            if path_ptr:
+                ctypes.OleDLL("ole32").CoTaskMemFree(path_ptr)
+        except Exception:
+            pass
+        try:
+            if shell_item.value:
+                item_release(shell_item)
+        except Exception:
+            pass
+        try:
+            if dialog.value:
+                release(dialog)
+        except Exception:
+            pass
+        try:
+            if co_initialized:
+                ctypes.OleDLL("ole32").CoUninitialize()
+        except Exception:
+            pass
+
+
+def select_capcut_executable_with_tkinter() -> str:
     try:
         from tkinter import Tk, filedialog
 
@@ -577,6 +684,10 @@ def select_capcut_executable_with_native_dialog() -> str:
     except Exception as exc:
         append_debug_log("system.select_capcut_executable.error", {"errorType": type(exc).__name__, "error": str(exc)})
         return ""
+
+
+def select_capcut_executable_with_native_dialog() -> str:
+    return select_capcut_executable_with_win32_dialog() or select_capcut_executable_with_tkinter()
 
 
 def sanitize_export_filename_part(value: str) -> str:
