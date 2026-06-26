@@ -114,6 +114,17 @@ def clear_media_storage_cache() -> None:
     MEDIA_LIBRARY_CACHE["expires_at"] = 0.0
 
 
+def legacy_path_from_request(request: Request, fallback_path: str) -> str:
+    raw_path = request.scope.get("raw_path")
+    if isinstance(raw_path, (bytes, bytearray)) and raw_path:
+        path = bytes(raw_path).decode("ascii", errors="ignore")
+    else:
+        path = fallback_path
+    if request.url.query:
+        return f"{path}?{request.url.query}"
+    return path
+
+
 def dispatch_legacy(handler_cls: type[Any], method: str, path: str, headers: dict[str, str], body: bytes, client_host: str, client_port: int) -> LegacyResult:
     handler = object.__new__(handler_cls)
     requestline_path = quote(path, safe="/:?&=%#[]@!$&'()*+,;")
@@ -1025,9 +1036,7 @@ def create_app(legacy_handler_cls: type[Any] | None = None) -> FastAPI:
     async def native_legacy_proxy(request: Request, route_headers: dict[str, str]) -> Response:
         body = await request.body()
         client = request.client
-        legacy_path = request.url.path
-        if request.url.query:
-            legacy_path = f"{legacy_path}?{request.url.query}"
+        legacy_path = legacy_path_from_request(request, request.url.path)
         result = await run_in_threadpool(
             dispatch_legacy,
             legacy_handler_cls,
@@ -1058,9 +1067,7 @@ def create_app(legacy_handler_cls: type[Any] | None = None) -> FastAPI:
         if legacy_handler_cls is None:
             return Response(b'{"error":"Runtime handler is not configured"}', status_code=500, media_type="application/json")
         body = await request.body()
-        path = "/" + full_path
-        if request.url.query:
-            path = f"{path}?{request.url.query}"
+        path = legacy_path_from_request(request, "/" + full_path)
         client = request.client
         result = await run_in_threadpool(
             dispatch_legacy,

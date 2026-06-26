@@ -10,6 +10,22 @@ from .route_helpers import callable_or_raise as _callable
 COPY_CLEAN_MAX_DIRECT_DURATION_SECONDS = 180
 
 
+def _item_local_media_path(legacy_globals: dict[str, Any], raw_item: dict[str, Any]) -> Any:
+    resolver = legacy_globals.get("media_url_to_file_path")
+    if not callable(resolver):
+        return None
+    for field in ("sourceVideoUrl", "remoteVideoUrl", "sourceUrl", "originalVideoUrl"):
+        media_path = resolver(raw_item.get(field))
+        if media_path:
+            return media_path
+    return None
+
+
+def _uncertain_no_subtitle_detection(detected: dict[str, Any]) -> tuple[bool, str]:
+    method = str(detected.get("method") or "").strip()
+    return detected.get("hasSubtitle") is False and method != "confirmed-no-subtitle", method
+
+
 def _client_state_helpers(legacy_globals: dict[str, Any]) -> tuple[Any, Any]:
     read_state = legacy_globals.get("read_client_state")
     write_state = legacy_globals.get("write_client_state")
@@ -326,7 +342,7 @@ def detect_region(legacy_globals: dict[str, Any], items: list[Any]) -> dict[str,
             continue
 
         media_dir = legacy_globals["MEDIA_ROOT"] / backend_media_id
-        video_path = _callable(legacy_globals, "find_original_media_video")(media_dir)
+        video_path = _item_local_media_path(legacy_globals, raw_item) or _callable(legacy_globals, "find_original_media_video")(media_dir)
         if not video_path:
             failed.append({"itemId": item_id, "error": "Original local video not found"})
             continue
@@ -337,6 +353,10 @@ def detect_region(legacy_globals: dict[str, Any], items: list[Any]) -> dict[str,
                 failed.append({"itemId": item_id, "error": "Subtitle region not detected"})
                 continue
             region["updatedAt"] = int(time.time() * 1000)
+            uncertain, method = _uncertain_no_subtitle_detection(detected)
+            if uncertain:
+                failed.append({"itemId": item_id, "error": "字幕区域未识别出来", "method": method or "unknown"})
+                continue
             regions.append(
                 {
                     "itemId": item_id,
@@ -344,7 +364,7 @@ def detect_region(legacy_globals: dict[str, Any], items: list[Any]) -> dict[str,
                     "hasSubtitle": bool(detected.get("hasSubtitle", True)),
                     "region": region,
                     "confidence": detected.get("confidence"),
-                    "method": detected.get("method"),
+                    "method": method,
                 }
             )
         except Exception as error:

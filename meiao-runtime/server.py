@@ -26758,8 +26758,11 @@ def copy_clean_best_text_band(components: list[dict], width: int, height: int, s
             area_density = sum(float(item["area"]) for item in band) / max(1.0, (x2 - x1 + 1) * (bottom - top + 1))
             median_h = statistics.median([float(item["h"]) for item in band])
             small_count = sum(1 for item in band if item["h"] <= max(16, height * 0.045) and item["w"] <= width * 0.14)
-            bright_count = sum(1 for item in band if float(item.get("mean") or 0) >= 150)
-            dark_count = sum(1 for item in band if float(item.get("mean") or 0) <= 105)
+            mean_values = [float(item.get("mean") or 0) for item in band]
+            bright_count = sum(1 for value in mean_values if value >= 150)
+            dark_count = sum(1 for value in mean_values if value <= 105)
+            mid_contrast_count = sum(1 for value in mean_values if 85 <= value <= 165)
+            mean_spread = (max(mean_values) - min(mean_values)) if mean_values else 0
             if not (0.18 <= span_ratio <= 0.94):
                 continue
             if not (0.012 <= area_density <= 0.32):
@@ -26768,7 +26771,10 @@ def copy_clean_best_text_band(components: list[dict], width: int, height: int, s
                 continue
             if small_count < max(5, int(len(band) * 0.68)):
                 continue
-            if bright_count < max(3, int(len(band) * 0.22)) or dark_count < max(2, int(len(band) * 0.12)):
+            has_bright_dark_text = bright_count >= max(3, int(len(band) * 0.22)) and dark_count >= max(2, int(len(band) * 0.12))
+            has_antialiased_text = mid_contrast_count >= max(5, int(len(band) * 0.68)) and mean_spread >= 12
+            has_outline_text = dark_count >= max(4, int(len(band) * 0.68)) and mean_spread >= 6
+            if not has_bright_dark_text and not has_antialiased_text and not has_outline_text:
                 continue
             vertical_position = center / max(1, height)
             center_bias = 1.0 - min(0.22, abs(vertical_position - 0.34) * 0.32)
@@ -26831,6 +26837,7 @@ def detect_copy_clean_subtitle_region(video_path: Path) -> dict:
         fast_search_start = int(fast_scaled_height * 0.08)
         fast_search_end = max(fast_search_start + 1, int(fast_scaled_height * 0.95))
         fast_positive_count = 0
+        fast_candidate_count = 0
         for frame_index in range(fast_frame_count):
             frame_offset = frame_index * fast_frame_size
             luma = bytearray(fast_scaled_width * fast_scaled_height)
@@ -26844,8 +26851,10 @@ def detect_copy_clean_subtitle_region(video_path: Path) -> dict:
                 chroma[pixel_index] = max(red, green, blue) - min(red, green, blue)
             components = copy_clean_find_text_components(luma, chroma, fast_scaled_width, fast_scaled_height, fast_search_start, fast_search_end)
             best_band = copy_clean_best_text_band(components, fast_scaled_width, fast_scaled_height, fast_search_start, fast_search_end)
-            if best_band and best_band["score"] >= 2.2:
-                fast_positive_count += 1
+            if best_band:
+                fast_candidate_count += 1
+                if best_band["score"] >= 2.2:
+                    fast_positive_count += 1
 
         append_debug_log(
             "copy_clean.detect_fast_screen",
@@ -26855,10 +26864,11 @@ def detect_copy_clean_subtitle_region(video_path: Path) -> dict:
                 "samples": fast_sample_count,
                 "frames": fast_frame_count,
                 "positive": fast_positive_count,
+                "candidates": fast_candidate_count,
                 "elapsedMs": round((time.perf_counter() - fast_started_at) * 1000),
             },
         )
-        if fast_frame_count > 0 and fast_positive_count == 0:
+        if fast_frame_count > 0 and fast_positive_count == 0 and fast_candidate_count == 0:
             return fallback_copy_clean_region(width, height, "fast-no-text-line")
     else:
         append_debug_log(
@@ -26942,10 +26952,12 @@ def detect_copy_clean_subtitle_region(video_path: Path) -> dict:
         y_pad_top = scaled_height * 0.018
         y_pad_bottom = scaled_height * 0.036
         x_pad = scaled_width * 0.035
+        scaled_x1 = max(0, persistent_band["x1"] - x_pad)
+        scaled_x2 = min(float(scaled_width), persistent_band["x2"] + x_pad)
         region = {
-            "x1": 0,
+            "x1": max(0, min(width - 1, round(scaled_x1 * width / scaled_width))),
             "y1": max(0, min(height - 1, round(max(search_start, persistent_band["y1"] - y_pad_top) * height / scaled_height))),
-            "x2": width,
+            "x2": max(1, min(width, round(scaled_x2 * width / scaled_width))),
             "y2": max(1, min(height, round(min(scaled_height, persistent_band["y2"] + y_pad_bottom) * height / scaled_height))),
             "sourceWidth": width,
             "sourceHeight": height,
@@ -27001,9 +27013,9 @@ def detect_copy_clean_subtitle_region(video_path: Path) -> dict:
         return fallback_copy_clean_region(width, height, "no-valid-text-box")
 
     region = {
-        "x1": 0,
+        "x1": max(0, min(width - 1, round(scaled_x1 * width / scaled_width))),
         "y1": max(0, min(height - 1, round(scaled_y1 * height / scaled_height))),
-        "x2": width,
+        "x2": max(1, min(width, round(scaled_x2 * width / scaled_width))),
         "y2": max(1, min(height, round(scaled_y2 * height / scaled_height))),
         "sourceWidth": width,
         "sourceHeight": height,

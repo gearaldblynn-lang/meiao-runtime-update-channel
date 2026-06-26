@@ -13,6 +13,7 @@ $goRuntimePath = Join-Path $runtimeRoot "meiao-runtime.exe"
 $pythonPath = Join-Path $runtimeRoot "python\python.exe"
 $serverPath = Join-Path $runtimeRoot "server.py"
 $runtimePackagePath = Join-Path $runtimeRoot "meiao_runtime"
+$ffmpegRepairScript = Join-Path $runtimeRoot "tools\repair_ffmpeg_runtime.ps1"
 $outLog = Join-Path $runtimeRoot "runtime-out.log"
 $errLog = Join-Path $runtimeRoot "runtime-err.log"
 $pidFile = Join-Path $runtimeRoot "runtime.pid"
@@ -32,6 +33,22 @@ function Write-StartupLog {
   param([string]$Message)
   $line = "{0} {1}" -f (Get-Date -Format "yyyy-MM-dd HH:mm:ss"), $Message
   Add-Content -Path $startupLog -Value $line -Encoding UTF8
+}
+
+function Repair-FFmpegRuntimeIfNeeded {
+  $ffmpegExe = Join-Path $runtimeRoot "runtime\ffmpeg.exe"
+  $ffprobeExe = Join-Path $runtimeRoot "runtime\ffprobe.exe"
+  if ((Test-Path -LiteralPath $ffmpegExe -PathType Leaf) -and (Test-Path -LiteralPath $ffprobeExe -PathType Leaf)) {
+    return
+  }
+  if (-not (Test-Path -LiteralPath $ffmpegRepairScript -PathType Leaf)) {
+    throw "FFmpeg runtime dependency is missing and repair script was not found: $ffmpegRepairScript"
+  }
+  Write-StartupLog "ffmpeg dependency missing; attempting repair"
+  & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $ffmpegRepairScript -RuntimeRoot $runtimeRoot
+  if ($LASTEXITCODE -ne 0) {
+    throw "FFmpeg runtime dependency repair failed with exit code $LASTEXITCODE."
+  }
 }
 
 function Normalize-PathForCompare {
@@ -406,6 +423,7 @@ if (-not (Test-Path $serverPath)) {
   throw "Runtime server is missing: $serverPath"
 }
 
+Repair-FFmpegRuntimeIfNeeded
 Start-CapCutMate
 
 if (Test-Path -LiteralPath $goRuntimePath) {
