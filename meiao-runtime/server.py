@@ -26773,10 +26773,10 @@ def copy_clean_find_text_components(luma: bytearray, chroma: bytearray, width: i
     return copy_clean_components_from_mask(copy_clean_text_mask(luma, chroma, width, height, search_start, search_end), luma, width, height, search_start, search_end)
 
 
-def copy_clean_best_text_band(components: list[dict], width: int, height: int, search_start: int, search_end: int) -> dict | None:
+def copy_clean_text_band_candidates(components: list[dict], width: int, height: int, search_start: int, search_end: int) -> list[dict]:
     if len(components) < 5:
-        return None
-    best: dict | None = None
+        return []
+    candidates: list[dict] = []
     min_window = max(8, int(height * 0.035))
     max_window = max(min_window + 1, int(height * 0.16))
     for center in range(search_start + min_window // 2, search_end - min_window // 2):
@@ -26831,9 +26831,49 @@ def copy_clean_best_text_band(components: list[dict], width: int, height: int, s
                 "areaDensity": area_density,
                 "bandHeightRatio": band_height_ratio,
             }
-            if best is None or candidate["score"] > best["score"]:
-                best = candidate
-    return best
+            candidates.append(candidate)
+    return candidates
+
+
+def copy_clean_best_text_band(components: list[dict], width: int, height: int, search_start: int, search_end: int) -> dict | None:
+    candidates = copy_clean_text_band_candidates(components, width, height, search_start, search_end)
+    if not candidates:
+        return None
+    return max(candidates, key=lambda item: float(item["score"]))
+
+
+def copy_clean_has_multiple_text_positions(bands: list[dict], frame_count: int, height: int) -> bool:
+    if len(bands) < 4 or frame_count <= 0:
+        return False
+    tolerance = max(10.0, height * 0.075)
+    min_separation = max(24.0, height * 0.18)
+    min_cluster_count = max(2, math.ceil(frame_count * 0.18))
+    clusters: list[dict] = []
+    for band in sorted(bands, key=lambda item: (float(item["y1"]) + float(item["y2"])) / 2):
+        center = (float(band["y1"]) + float(band["y2"])) / 2
+        if clusters and abs(center - float(clusters[-1]["center"])) <= tolerance:
+            cluster = clusters[-1]
+            count = int(cluster["count"]) + 1
+            cluster["center"] = (float(cluster["center"]) * int(cluster["count"]) + center) / count
+            cluster["count"] = count
+        else:
+            clusters.append({"center": center, "count": 1})
+    stable_clusters = [cluster for cluster in clusters if int(cluster["count"]) >= min_cluster_count]
+    if len(stable_clusters) < 2:
+        return False
+    centers = sorted(float(cluster["center"]) for cluster in stable_clusters)
+    return any((right - left) >= min_separation for left, right in zip(centers, centers[1:]))
+
+
+def copy_clean_full_frame_region(width: int, height: int) -> dict:
+    return {
+        "x1": 0,
+        "y1": 0,
+        "x2": width,
+        "y2": height,
+        "sourceWidth": width,
+        "sourceHeight": height,
+    }
 
 
 def detect_copy_clean_subtitle_region(video_path: Path) -> dict:
@@ -26889,7 +26929,8 @@ def detect_copy_clean_subtitle_region(video_path: Path) -> dict:
                 luma[pixel_index] = (77 * red + 150 * green + 29 * blue) >> 8
                 chroma[pixel_index] = max(red, green, blue) - min(red, green, blue)
             components = copy_clean_find_text_components(luma, chroma, fast_scaled_width, fast_scaled_height, fast_search_start, fast_search_end)
-            best_band = copy_clean_best_text_band(components, fast_scaled_width, fast_scaled_height, fast_search_start, fast_search_end)
+            candidates = copy_clean_text_band_candidates(components, fast_scaled_width, fast_scaled_height, fast_search_start, fast_search_end)
+            best_band = max(candidates, key=lambda item: float(item["score"])) if candidates else None
             if best_band:
                 fast_candidate_count += 1
                 if best_band["score"] >= 2.2:
@@ -26955,6 +26996,7 @@ def detect_copy_clean_subtitle_region(video_path: Path) -> dict:
     search_start = int(scaled_height * 0.08)
     search_end = max(search_start + 1, int(scaled_height * 0.95))
     positive_bands: list[dict] = []
+    positive_position_bands: list[dict] = []
     persistent_counts = [0] * (scaled_width * scaled_height)
     persistent_luma_sum = [0] * (scaled_width * scaled_height)
     for frame_index in range(frame_count):
@@ -26974,9 +27016,19 @@ def detect_copy_clean_subtitle_region(video_path: Path) -> dict:
                 persistent_counts[pixel_index] += 1
             persistent_luma_sum[pixel_index] += luma[pixel_index]
         components = copy_clean_components_from_mask(frame_mask, luma, scaled_width, scaled_height, search_start, search_end)
-        best_band = copy_clean_best_text_band(components, scaled_width, scaled_height, search_start, search_end)
+        candidates = copy_clean_text_band_candidates(components, scaled_width, scaled_height, search_start, search_end)
+        best_band = max(candidates, key=lambda item: float(item["score"])) if candidates else None
         if best_band and best_band["score"] >= 3.0:
             positive_bands.append(best_band)
+        positive_position_bands.extend(item for item in candidates if float(item["score"]) >= 3.0)
+
+    if copy_clean_has_multiple_text_positions(positive_position_bands, frame_count, scaled_height):
+        return {
+            "hasSubtitle": True,
+            "region": copy_clean_full_frame_region(width, height),
+            "confidence": 0.62,
+            "method": "multi-position-text-full-frame",
+        }
 
     persistent_threshold = max(3, math.ceil(frame_count * 0.52))
     persistent_mask = bytearray(scaled_width * scaled_height)
@@ -26990,13 +27042,10 @@ def detect_copy_clean_subtitle_region(video_path: Path) -> dict:
     if persistent_band and persistent_band["score"] >= 3.0:
         y_pad_top = scaled_height * 0.018
         y_pad_bottom = scaled_height * 0.036
-        x_pad = scaled_width * 0.035
-        scaled_x1 = max(0, persistent_band["x1"] - x_pad)
-        scaled_x2 = min(float(scaled_width), persistent_band["x2"] + x_pad)
         region = {
-            "x1": max(0, min(width - 1, round(scaled_x1 * width / scaled_width))),
+            "x1": 0,
             "y1": max(0, min(height - 1, round(max(search_start, persistent_band["y1"] - y_pad_top) * height / scaled_height))),
-            "x2": max(1, min(width, round(scaled_x2 * width / scaled_width))),
+            "x2": width,
             "y2": max(1, min(height, round(min(scaled_height, persistent_band["y2"] + y_pad_bottom) * height / scaled_height))),
             "sourceWidth": width,
             "sourceHeight": height,
@@ -27039,12 +27088,10 @@ def detect_copy_clean_subtitle_region(video_path: Path) -> dict:
     if len(strong_bands) < min_positive_frames:
         return fallback_copy_clean_region(width, height, "no-strong-text-line")
 
-    x1_values = [float(item["x1"]) for item in strong_bands]
-    x2_values = [float(item["x2"]) for item in strong_bands]
     y1_values = [float(item["y1"]) for item in strong_bands]
     y2_values = [float(item["y2"]) for item in strong_bands]
-    scaled_x1 = max(0, percentile(x1_values, 0.30) - scaled_width * 0.035)
-    scaled_x2 = min(float(scaled_width), percentile(x2_values, 0.75) + scaled_width * 0.035)
+    scaled_x1 = 0.0
+    scaled_x2 = float(scaled_width)
     scaled_y1 = max(float(search_start), percentile(y1_values, 0.15) - scaled_height * 0.045)
     scaled_y2 = min(float(scaled_height), percentile(y2_values, 0.65) + scaled_height * 0.036)
 

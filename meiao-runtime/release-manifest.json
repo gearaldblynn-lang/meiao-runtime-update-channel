@@ -1,6 +1,6 @@
 {
-    "version":  "20260626-environment-health-ux",
-    "createdAt":  "2026-06-26T04:11:56.7602716Z",
+    "version":  "20260626-copyclean-region-policy",
+    "createdAt":  "2026-06-26T07:07:30.2071270Z",
     "channel":  "git-update",
     "payloadMode":  "partial",
     "repository":  "https://github.com/gearaldblynn-lang/meiao-runtime-update-channel.git",
@@ -61,7 +61,7 @@
                              "integrations/capcut_mate/upstream/capcut-mate-main/temp"
                          ],
     "fileCount":  259,
-    "payloadHash":  "eeaa40e2377396c106064eca49652f8673714495274d6fe876746329631a2c73",
+    "payloadHash":  "a39ddf0c09590c2597a74cc7c1f872f9d2326691c5fe80515cc13369e49a3ec0",
     "files":  [
                   {
                       "path":  "backup-runtime-data.ps1",
@@ -1300,8 +1300,8 @@
                   },
                   {
                       "path":  "server.py",
-                      "sha256":  "c95b184337677fad0b6c200ca47f49f6b34952847524d25bf856143b19815a23",
-                      "size":  1557371
+                      "sha256":  "f66a277b16fe0604703f11cf9eb25ebd5a87fcb033586c5de45f682a035aceca",
+                      "size":  1559254
                   },
                   {
                       "path":  "start-meiao.bat",
