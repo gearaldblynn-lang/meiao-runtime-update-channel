@@ -555,8 +555,10 @@ def create_app(legacy_handler_cls: type[Any] | None = None) -> FastAPI:
                     cached_payload = MEDIA_LIBRARY_CACHE.get("payload")
                     if isinstance(cached_payload, dict) and time.time() < float(MEDIA_LIBRARY_CACHE.get("expires_at") or 0):
                         return cached_payload
-                    saved_items = state_store.read_sidecar("media-library")
-                    disk_items = legacy_callable("recover_media_library_items_from_disk")()
+                    deleted_media = legacy_callable("read_deleted_media_map")()
+                    filter_deleted = legacy_callable("filter_ingest_items_for_deleted_media")
+                    saved_items = filter_deleted(state_store.read_sidecar("media-library"), deleted_media)
+                    disk_items = filter_deleted(legacy_callable("recover_media_library_items_from_disk")(), deleted_media)
                     items = legacy_callable("merge_media_library_items")(saved_items, disk_items)
                     if items != saved_items:
                         state_store.write_sidecar("media-library", items)
@@ -586,7 +588,10 @@ def create_app(legacy_handler_cls: type[Any] | None = None) -> FastAPI:
                     return {"__status": 400, "payload": {"error": "items must be an array"}}
                 with MEDIA_STORAGE_LOCK:
                     items = [item for item in raw_items if isinstance(item, dict) and str(item.get("id") or "").strip()]
+                    deleted_media = legacy_callable("read_deleted_media_map")()
+                    items = legacy_callable("filter_ingest_items_for_deleted_media")(items, deleted_media)
                     current = state_store.read_sidecar("media-library")
+                    current = legacy_callable("filter_ingest_items_for_deleted_media")(current, deleted_media)
                     if not items and current and payload.get("allowEmptyProtected") is not True:
                         return {"__status": 200, "payload": {"ok": True, "count": len(current), "skipped": True}}
                     if payload.get("replace") is not True:

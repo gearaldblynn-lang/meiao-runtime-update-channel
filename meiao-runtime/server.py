@@ -46,7 +46,7 @@ from openpyxl.styles import Alignment, Font, PatternFill
 import requests
 from yt_dlp import YoutubeDL  # type: ignore
 
-from meiao_runtime import flow_progress_runtime, flow_recent_project_runtime, flow_reference_store_runtime
+from meiao_runtime import copy_clean_ocr_runtime, flow_progress_runtime, flow_recent_project_runtime, flow_reference_store_runtime
 
 HOST = "127.0.0.1"
 PORT = 8787
@@ -961,9 +961,50 @@ def write_media_library_items(items: list[dict]) -> None:
         tmp_file.replace(MEDIA_LIBRARY_FILE)
 
 
+def read_deleted_media_map(state: dict | None = None) -> dict[str, int]:
+    raw = (state if isinstance(state, dict) else read_client_state()).get("meiao-deleted-media")
+    if not isinstance(raw, dict):
+        return {}
+    deleted: dict[str, int] = {}
+    for media_id, deleted_at in raw.items():
+        key = str(media_id or "").strip()
+        if not key or "/" in key or "\\" in key:
+            continue
+        try:
+            timestamp = int(deleted_at)
+        except Exception:
+            timestamp = 0
+        deleted[key] = timestamp
+    return deleted
+
+
+def ingest_item_media_ids(item: object) -> set[str]:
+    if not isinstance(item, dict):
+        return set()
+    ids = {str(item.get("backendMediaId") or "").strip()}
+    for field in ("remoteVideoUrl", "remotePosterUrl", "sourceVideoUrl", "sourceUrl"):
+        media_id = media_id_from_media_url(item.get(field))
+        if media_id:
+            ids.add(media_id)
+    return {item for item in ids if item}
+
+
+def filter_ingest_items_for_deleted_media(items: object, deleted_media: dict[str, int] | None = None) -> list[dict]:
+    if not isinstance(items, list):
+        return []
+    deleted = deleted_media if isinstance(deleted_media, dict) else read_deleted_media_map()
+    if not deleted:
+        return [item for item in items if isinstance(item, dict)]
+    return [
+        item for item in items
+        if isinstance(item, dict) and not (ingest_item_media_ids(item) & set(deleted.keys()))
+    ]
+
+
 def recover_media_library_items_from_disk() -> list[dict]:
     if not MEDIA_ROOT.exists():
         return []
+    deleted_media = read_deleted_media_map()
     skip_names = {
         "bgm-library",
         "capcut-fonts",
@@ -976,6 +1017,8 @@ def recover_media_library_items_from_disk() -> list[dict]:
     recovered: list[dict] = []
     for media_dir in sorted(MEDIA_ROOT.iterdir(), key=lambda item: item.stat().st_mtime if item.exists() else 0, reverse=True):
         if not media_dir.is_dir():
+            continue
+        if media_dir.name in deleted_media:
             continue
         if media_dir.name in skip_names or media_dir.name.startswith(skip_prefixes) or media_dir.name.startswith("_"):
             continue
@@ -1063,6 +1106,10 @@ def sanitize_media_library_item(item: dict) -> dict:
     return next_item
 
 
+def is_recovered_media_library_item(item: dict) -> bool:
+    return str(item.get("id") or "").startswith("REC-") or str(item.get("source") or "").strip() == "本地恢复"
+
+
 def merge_media_library_items(primary: list[dict], fallback: list[dict]) -> list[dict]:
     by_key: dict[str, dict] = {}
     alias_to_key: dict[str, str] = {}
@@ -1093,7 +1140,12 @@ def merge_media_library_items(primary: list[dict], fallback: list[dict]) -> list
             continue
         item_time = client_item_time(item)
         previous_time = client_item_time(previous)
-        if item_time > previous_time or (item_time == previous_time and media_item_richness(item) >= media_item_richness(previous)):
+        if is_recovered_media_library_item(item) != is_recovered_media_library_item(previous):
+            if is_recovered_media_library_item(previous):
+                merged_item = {**previous, **item}
+            else:
+                merged_item = {**item, **previous}
+        elif item_time > previous_time or (item_time == previous_time and media_item_richness(item) >= media_item_richness(previous)):
             merged_item = {**previous, **item}
         else:
             merged_item = {**item, **previous}
@@ -1437,6 +1489,7 @@ CLIENT_STATE_PROTECTED_EMPTY_KEYS = {
     "meiao-ingest-items",
     "meiao-product-projects",
     "meiao-deleted-product-projects",
+    "meiao-deleted-media",
     "meiao-copy-clean-review",
     "meiao-copy-clean-tasks",
     "meiao-copy-clean-regions",
@@ -1465,6 +1518,7 @@ CLIENT_STATE_PROTECTED_EMPTY_KEYS = {
     "meiao-script-renames",
     "meiao-ai-output-workspaces",
     "meiao-deleted-product-projects",
+    "meiao-deleted-media",
 }
 
 
@@ -1512,6 +1566,7 @@ CLIENT_STATE_MERGE_DICT_KEYS = {
     "meiao-script-renames",
     "meiao-ai-output-workspaces",
     "meiao-unified-task-tombstones",
+    "meiao-deleted-media",
 }
 
 
@@ -2773,6 +2828,12 @@ def delete_product_project_cascade(project_id: str) -> dict:
     deleted["vectors"] = int(deleted.get("vectors") or 0) + vector_removed
 
     media_delete_result = delete_project_media_dirs(removed_media_ids)
+    deleted_media = read_deleted_media_map(next_state)
+    deleted_at = int(time.time() * 1000)
+    for media_id in sorted(removed_media_ids):
+        if media_id and media_id not in PROJECT_GLOBAL_MEDIA_IDS:
+            deleted_media[media_id] = deleted_at
+    next_state["meiao-deleted-media"] = deleted_media
     write_client_state(next_state)
     write_media_library_items(merge_media_library_items(next_state.get("meiao-ingest-items", []), []))
     write_draft_templates(merge_draft_templates(next_state.get("meiao-draft-templates", []), []))
@@ -3200,10 +3261,12 @@ def normalize_flow_fission_jobs_for_recovery(jobs: object, assets: object) -> li
 
 def build_recovered_client_state() -> dict:
     state = read_client_state()
+    deleted_media = read_deleted_media_map(state)
     active_project_ids = active_product_project_ids_from_state(state)
     state_ingest_items = state.get("meiao-ingest-items") if isinstance(state.get("meiao-ingest-items"), list) else []
-    saved_ingest_items = read_media_library_items()
-    disk_ingest_items = recover_media_library_items_from_disk()
+    state_ingest_items = filter_ingest_items_for_deleted_media(state_ingest_items, deleted_media)
+    saved_ingest_items = filter_ingest_items_for_deleted_media(read_media_library_items(), deleted_media)
+    disk_ingest_items = filter_ingest_items_for_deleted_media(recover_media_library_items_from_disk(), deleted_media)
     ingest_items = merge_media_library_items(
         merge_media_library_items(state_ingest_items, saved_ingest_items),
         disk_ingest_items,
@@ -3236,13 +3299,6 @@ def build_recovered_client_state() -> dict:
         for item_id in (state.get("meiao-scene-split-queue") or [])
         if str(item_id).strip() in valid_ingest_ids
     }
-    for item in ingest_items:
-        if not isinstance(item, dict):
-            continue
-        item_id = str(item.get("id") or "").strip()
-        if item_id and not review_map.get(item_id):
-            review_map[item_id] = "keep_original"
-
     recovered_records, recovered_vectors = recover_scene_split_records_from_vectors(valid_media_ids)
     split_records = state.get("meiao-scene-split-records") if isinstance(state.get("meiao-scene-split-records"), dict) else {}
     split_records = filter_scene_split_records_for_active_media(split_records, valid_media_ids, valid_script_ids)
@@ -3289,6 +3345,56 @@ def build_recovered_client_state() -> dict:
         for item_id, region in copy_regions_raw.items()
         if str(item_id).strip() in valid_ingest_ids
     }
+    items_by_project: dict[str, list[dict]] = {}
+    for item in ingest_items:
+        if not isinstance(item, dict):
+            continue
+        project_id = str(item.get("projectId") or "").strip()
+        if project_id:
+            items_by_project.setdefault(project_id, []).append(item)
+
+    def item_has_copy_clean_evidence(item: dict) -> bool:
+        item_id = str(item.get("id") or "").strip()
+        if not item_id:
+            return False
+        if item_id in copy_tasks or item_id in copy_regions:
+            return True
+        evidence_keys = (
+            "copyCleanTaskId",
+            "copyCleanStatus",
+            "copyCleanResultUrl",
+            "copyCleanResultLocalUrl",
+            "copyCleanUrl",
+            "copyCleanedUrl",
+        )
+        return any(str(item.get(key) or "").strip() for key in evidence_keys)
+
+    for project_id, project_items in items_by_project.items():
+        project_ids = {
+            str(item.get("id") or "").strip()
+            for item in project_items
+            if isinstance(item, dict) and str(item.get("id") or "").strip()
+        }
+        keep_original_ids = {
+            item_id
+            for item_id in project_ids
+            if review_map.get(item_id) == "keep_original"
+        }
+        if len(keep_original_ids) < 10:
+            continue
+        if len(keep_original_ids) / max(1, len(project_ids)) < 0.8:
+            continue
+        if any(review_map.get(item_id) and review_map.get(item_id) != "keep_original" for item_id in project_ids):
+            continue
+        if any(item_has_copy_clean_evidence(item) for item in project_items):
+            continue
+        for item_id in keep_original_ids:
+            review_map.pop(item_id, None)
+        append_debug_log("client_state.recover.copy_clean_review.pruned_legacy_keep_original", {
+            "projectId": project_id,
+            "pruned": len(keep_original_ids),
+            "ingest": len(project_ids),
+        })
     for task in copy_tasks.values():
         if not isinstance(task, dict):
             continue
@@ -3344,6 +3450,7 @@ def build_recovered_client_state() -> dict:
     recovered = {
         "meiao-ingest-items": ingest_items,
         "meiao-product-projects": state.get("meiao-product-projects") if isinstance(state.get("meiao-product-projects"), list) else [],
+        "meiao-deleted-media": deleted_media,
         "meiao-copy-clean-review": review_map,
         "meiao-copy-clean-tasks": copy_tasks,
         "meiao-copy-clean-regions": copy_regions,
@@ -4447,6 +4554,13 @@ def build_environment_health() -> dict:
             "message": "已找到" if FFMPEG_EXE.exists() else "缺少 ffmpeg.exe，视频处理能力不可用",
         },
         {
+            "key": "ocr",
+            "label": "增强字幕识别 OCR",
+            "path": str(VENDOR_DIR / "rapidocr_onnxruntime"),
+            "status": "ok" if copy_clean_ocr_runtime.ocr_available() else "warning",
+            "message": "已安装 RapidOCR 轻量组件" if copy_clean_ocr_runtime.ocr_available() else "未安装；字幕位置识别将使用基础算法，可点击自动配置增强组件",
+        },
+        {
             "key": "fixed_jianying",
             "label": "剪映 5.9 程序",
             "path": str(resolve_capcut_executable() or get_configured_capcut_path() or FIXED_JIANYING_EXE),
@@ -4516,39 +4630,49 @@ def build_environment_health() -> dict:
 
 def repair_environment_dependency(payload: dict | None = None) -> dict:
     key = str((payload or {}).get("key") or "").strip().lower()
-    if key != "ffmpeg":
-        raise ValueError("Only ffmpeg can be repaired automatically from the environment check.")
+    repair_scripts = {
+        "ffmpeg": "repair_ffmpeg_runtime.ps1",
+        "ocr": "repair_ocr_runtime.ps1",
+    }
+    if key not in repair_scripts:
+        raise ValueError("Only ffmpeg and ocr can be repaired automatically from the environment check.")
 
-    runtime_root = BASE_DIR if (BASE_DIR / "tools" / "repair_ffmpeg_runtime.ps1").exists() else BASE_DIR.parent
-    repair_script = runtime_root / "tools" / "repair_ffmpeg_runtime.ps1"
+    script_name = repair_scripts[key]
+    runtime_root = BASE_DIR if (BASE_DIR / "tools" / script_name).exists() else BASE_DIR.parent
+    repair_script = runtime_root / "tools" / script_name
+    label = "OCR" if key == "ocr" else "FFmpeg"
     if not repair_script.exists():
-        raise FileNotFoundError(f"FFmpeg repair script not found: {repair_script}")
+        raise FileNotFoundError(f"{label} repair script not found: {repair_script}")
+
+    command = [
+        "powershell.exe",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        str(repair_script),
+        "-RuntimeRoot",
+        str(runtime_root),
+    ]
+    if key == "ocr":
+        command.append("-UsePipFallback")
 
     completed = subprocess.run(
-        [
-            "powershell.exe",
-            "-NoProfile",
-            "-ExecutionPolicy",
-            "Bypass",
-            "-File",
-            str(repair_script),
-            "-RuntimeRoot",
-            str(runtime_root),
-        ],
+        command,
         capture_output=True,
         text=True,
         encoding="utf-8",
         errors="replace",
-        timeout=360,
+        timeout=900 if key == "ocr" else 360,
     )
     if completed.returncode != 0:
         detail = (completed.stderr or completed.stdout or "").strip()
-        raise RuntimeError(f"FFmpeg 自动配置失败：{detail or completed.returncode}")
+        raise RuntimeError(f"{label} 自动配置失败：{detail or completed.returncode}")
 
     append_debug_log("system.environment.repair", {"key": key, "stdout": (completed.stdout or "").strip()[-1000:]})
     return {
         "repairedKey": key,
-        "message": "FFmpeg 已自动配置完成。",
+        "message": f"{label} 已自动配置完成。",
         "health": build_environment_health(),
     }
 
@@ -26876,6 +27000,83 @@ def copy_clean_full_frame_region(width: int, height: int) -> dict:
     }
 
 
+def copy_clean_ocr_sample_count(duration_seconds: float | None) -> int:
+    duration = float(duration_seconds or 0)
+    if duration <= 0:
+        return 4
+    if duration <= 30:
+        return 4
+    if duration <= 120:
+        return 5
+    return 6
+
+
+def copy_clean_detect_region_with_ocr(video_path: Path, width: int, height: int, duration_seconds: float | None) -> dict | None:
+    if not copy_clean_ocr_runtime.ocr_available():
+        return None
+    ocr_started_at = time.perf_counter()
+    ocr_width = min(width, 960)
+    ocr_height = max(2, int(round((height * ocr_width / width) / 2) * 2))
+    sample_count = copy_clean_ocr_sample_count(duration_seconds)
+    sample_fps = sample_count / max(1.0, float(duration_seconds or 0))
+    frame_size = ocr_width * ocr_height * 3
+    command = [
+        str(FFMPEG_EXE),
+        "-v",
+        "error",
+        "-i",
+        str(video_path),
+        "-vf",
+        f"fps={sample_fps:.4f},scale={ocr_width}:{ocr_height},format=rgb24",
+        "-frames:v",
+        str(sample_count + 1),
+        "-f",
+        "rawvideo",
+        "-pix_fmt",
+        "rgb24",
+        "pipe:1",
+    ]
+    try:
+        completed = subprocess.run(command, capture_output=True, timeout=60)
+        if completed.returncode != 0 or not completed.stdout:
+            return None
+        from PIL import Image
+
+        raw = completed.stdout
+        frame_count = len(raw) // frame_size
+        frames = []
+        for frame_index in range(frame_count):
+            frame_offset = frame_index * frame_size
+            frame_bytes = raw[frame_offset: frame_offset + frame_size]
+            if len(frame_bytes) != frame_size:
+                continue
+            frames.append(Image.frombytes("RGB", (ocr_width, ocr_height), frame_bytes))
+        detected = copy_clean_ocr_runtime.detect_subtitle_region_from_frames(frames, ocr_width, ocr_height)
+        if not isinstance(detected, dict) or not isinstance(detected.get("region"), dict):
+            return None
+        region = normalize_copy_clean_region(detected["region"], width, height)
+        append_debug_log(
+            "copy_clean.detect_ocr",
+            {
+                "videoPath": str(video_path),
+                "duration": duration_seconds,
+                "samples": sample_count,
+                "frames": len(frames),
+                "method": detected.get("method"),
+                "elapsedMs": round((time.perf_counter() - ocr_started_at) * 1000),
+            },
+        )
+        return {
+            "hasSubtitle": True,
+            "region": region,
+            "confidence": detected.get("confidence"),
+            "method": detected.get("method") or "ocr-text-line",
+        }
+    except Exception as exc:
+        append_debug_log("copy_clean.detect_ocr_failed", {"videoPath": str(video_path), "error": str(exc)})
+        return None
+
+
 def detect_copy_clean_subtitle_region(video_path: Path) -> dict:
     resolution = probe_video_resolution(video_path)
     if not resolution:
@@ -26887,6 +27088,10 @@ def detect_copy_clean_subtitle_region(video_path: Path) -> dict:
         return fallback_copy_clean_region(width, height, "fallback-no-ffmpeg")
 
     duration_seconds = probe_video_duration(video_path)
+    ocr_region = copy_clean_detect_region_with_ocr(video_path, width, height, duration_seconds)
+    if ocr_region:
+        return ocr_region
+
     fast_started_at = time.perf_counter()
     fast_sample_count = copy_clean_fast_sample_count(duration_seconds)
     fast_sample_fps = fast_sample_count / max(1.0, float(duration_seconds or 0))

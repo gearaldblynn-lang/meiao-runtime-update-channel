@@ -142,6 +142,10 @@ def _cleanup_media_state(legacy_globals: dict[str, Any], media_id: str) -> dict[
             next_split_records[key_text] = record
 
         state["meiao-ingest-items"] = next_state_items
+        if media_id:
+            deleted_media = state.get("meiao-deleted-media") if isinstance(state.get("meiao-deleted-media"), dict) else {}
+            deleted_media[str(media_id)] = int(time.time() * 1000)
+            state["meiao-deleted-media"] = deleted_media
         state["meiao-copy-clean-review"] = _delete_dict_entries(state.get("meiao-copy-clean-review"), removed_ingest_ids)
         state["meiao-copy-clean-tasks"] = _delete_dict_entries(state.get("meiao-copy-clean-tasks"), removed_ingest_ids, media_id=media_id)
         state["meiao-copy-clean-regions"] = _delete_dict_entries(state.get("meiao-copy-clean-regions"), removed_ingest_ids)
@@ -268,6 +272,12 @@ def delete_media(legacy_globals: dict[str, Any], media_id: str) -> tuple[int, di
     if target.exists():
         shutil.rmtree(target, ignore_errors=True)
     pruned = _callable(legacy_globals, "prune_vector_items")(media_id=media_id)
+    clear_media_storage_cache = legacy_globals.get("clear_media_storage_cache")
+    if callable(clear_media_storage_cache):
+        clear_media_storage_cache()
+    clear_client_state_recover_cache = legacy_globals.get("clear_client_state_recover_cache")
+    if callable(clear_client_state_recover_cache):
+        clear_client_state_recover_cache()
     _append_debug_log(
         legacy_globals,
         "api.media.delete",
