@@ -4514,6 +4514,45 @@ def build_environment_health() -> dict:
     }
 
 
+def repair_environment_dependency(payload: dict | None = None) -> dict:
+    key = str((payload or {}).get("key") or "").strip().lower()
+    if key != "ffmpeg":
+        raise ValueError("Only ffmpeg can be repaired automatically from the environment check.")
+
+    runtime_root = BASE_DIR if (BASE_DIR / "tools" / "repair_ffmpeg_runtime.ps1").exists() else BASE_DIR.parent
+    repair_script = runtime_root / "tools" / "repair_ffmpeg_runtime.ps1"
+    if not repair_script.exists():
+        raise FileNotFoundError(f"FFmpeg repair script not found: {repair_script}")
+
+    completed = subprocess.run(
+        [
+            "powershell.exe",
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            str(repair_script),
+            "-RuntimeRoot",
+            str(runtime_root),
+        ],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=360,
+    )
+    if completed.returncode != 0:
+        detail = (completed.stderr or completed.stdout or "").strip()
+        raise RuntimeError(f"FFmpeg 自动配置失败：{detail or completed.returncode}")
+
+    append_debug_log("system.environment.repair", {"key": key, "stdout": (completed.stdout or "").strip()[-1000:]})
+    return {
+        "repairedKey": key,
+        "message": "FFmpeg 已自动配置完成。",
+        "health": build_environment_health(),
+    }
+
+
 def get_service_config(config: dict | None = None) -> dict:
     root = config if isinstance(config, dict) else read_local_config()
     return {

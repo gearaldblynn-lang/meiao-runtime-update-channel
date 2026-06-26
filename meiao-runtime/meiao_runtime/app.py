@@ -242,6 +242,21 @@ def create_app(legacy_handler_cls: type[Any] | None = None) -> FastAPI:
         except Exception:
             return {}
 
+    @app.post("/api/system/environment/repair")
+    async def system_environment_repair(request: Request) -> Response:
+        payload = await json_payload(request)
+        repair_environment_dependency = legacy_globals.get("repair_environment_dependency")
+        if not callable(repair_environment_dependency):
+            return json_response({"error": "Environment repair is unavailable."}, status_code=500)
+        try:
+            result = await run_in_threadpool(repair_environment_dependency, payload)
+            return json_response(result)
+        except ValueError as exc:
+            return json_response({"error": str(exc)}, status_code=400)
+        except Exception as exc:
+            log_legacy_error("api.system.environment.repair.error", exc)
+            return json_response({"error": str(exc)}, status_code=500)
+
     @app.get("/api/system/capcut/locate")
     async def system_capcut_locate() -> Response:
         try:
