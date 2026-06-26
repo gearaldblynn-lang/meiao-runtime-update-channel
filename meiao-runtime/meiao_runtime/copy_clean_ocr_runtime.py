@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+import re
 import statistics
 from typing import Any, Callable
 
@@ -53,20 +54,57 @@ def _box_bounds(raw_box: Any) -> tuple[float, float, float, float] | None:
     return min(x_values), min(y_values), max(x_values), max(y_values)
 
 
-def _parse_ocr_item(item: Any) -> dict[str, float] | None:
+def _parse_ocr_item(item: Any) -> dict[str, Any] | None:
     if not isinstance(item, (list, tuple)) or not item:
         return None
     bounds = _box_bounds(item[0])
     if bounds is None:
         return None
     confidence = 1.0
+    text = str(item[1] or "").strip() if len(item) >= 2 else ""
     if len(item) >= 3:
         try:
             confidence = float(item[2])
         except (TypeError, ValueError):
             confidence = 0.0
     x1, y1, x2, y2 = bounds
-    return {"x1": x1, "y1": y1, "x2": x2, "y2": y2, "confidence": confidence}
+    return {"x1": x1, "y1": y1, "x2": x2, "y2": y2, "confidence": confidence, "text": text}
+
+
+def _meaningful_text_length(text: str) -> int:
+    return sum(1 for char in text if char.isalnum() or "\u4e00" <= char <= "\u9fff")
+
+
+def _looks_like_subtitle_box(box: dict[str, Any], width: int, height: int) -> bool:
+    box_width = float(box["x2"] - box["x1"])
+    box_height = float(box["y2"] - box["y1"])
+    if float(box["confidence"]) < MIN_OCR_CONFIDENCE:
+        return False
+    if box_width < width * 0.08 or box_height < height * 0.012:
+        return False
+    if box_height > height * 0.20:
+        return False
+
+    text = str(box.get("text") or "").strip()
+    compact_text = re.sub(r"\s+", "", text)
+    if not compact_text:
+        return False
+    if re.fullmatch(r"[\d:：/\\.\-]+", compact_text):
+        return False
+
+    meaningful_length = _meaningful_text_length(compact_text)
+    width_ratio = box_width / max(1, width)
+    center_x_ratio = ((float(box["x1"]) + float(box["x2"])) / 2) / max(1, width)
+    center_y_ratio = ((float(box["y1"]) + float(box["y2"])) / 2) / max(1, height)
+    if center_x_ratio < 0.18 or center_x_ratio > 0.82:
+        return False
+    if center_y_ratio < 0.58:
+        return width_ratio >= 0.40 and meaningful_length >= 5
+    if width_ratio >= 0.26 and meaningful_length >= 4:
+        return True
+    if center_y_ratio >= 0.58 and width_ratio >= 0.18 and meaningful_length >= 3:
+        return True
+    return False
 
 
 def _cluster_boxes_by_y(boxes: list[dict[str, float]], height: int) -> list[list[dict[str, float]]]:
@@ -112,13 +150,7 @@ def detect_subtitle_region_from_frames(
             box = _parse_ocr_item(raw_item)
             if box is None:
                 continue
-            box_width = box["x2"] - box["x1"]
-            box_height = box["y2"] - box["y1"]
-            if box["confidence"] < MIN_OCR_CONFIDENCE:
-                continue
-            if box_width < width * 0.08 or box_height < height * 0.012:
-                continue
-            if box_height > height * 0.20:
+            if not _looks_like_subtitle_box(box, width, height):
                 continue
             boxes.append(box)
 

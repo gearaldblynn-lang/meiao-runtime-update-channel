@@ -994,10 +994,17 @@ def filter_ingest_items_for_deleted_media(items: object, deleted_media: dict[str
         return []
     deleted = deleted_media if isinstance(deleted_media, dict) else read_deleted_media_map()
     if not deleted:
-        return [item for item in items if isinstance(item, dict)]
+        return [
+            item for item in items
+            if isinstance(item, dict) and not recovered_media_item_missing_disk(item)
+        ]
     return [
         item for item in items
-        if isinstance(item, dict) and not (ingest_item_media_ids(item) & set(deleted.keys()))
+        if (
+            isinstance(item, dict)
+            and not (ingest_item_media_ids(item) & set(deleted.keys()))
+            and not recovered_media_item_missing_disk(item)
+        )
     ]
 
 
@@ -1108,6 +1115,15 @@ def sanitize_media_library_item(item: dict) -> dict:
 
 def is_recovered_media_library_item(item: dict) -> bool:
     return str(item.get("id") or "").startswith("REC-") or str(item.get("source") or "").strip() == "本地恢复"
+
+
+def recovered_media_item_missing_disk(item: dict) -> bool:
+    if not is_recovered_media_library_item(item):
+        return False
+    media_id = str(item.get("backendMediaId") or "").strip()
+    if not media_id or "/" in media_id or "\\" in media_id:
+        return False
+    return not (MEDIA_ROOT / media_id).is_dir()
 
 
 def merge_media_library_items(primary: list[dict], fallback: list[dict]) -> list[dict]:
