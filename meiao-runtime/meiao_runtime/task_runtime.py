@@ -17,8 +17,9 @@ COMPACT_MAX_LOGS = 20
 
 
 class TaskControl:
-    def __init__(self, cancel_event: threading.Event) -> None:
+    def __init__(self, cancel_event: threading.Event, progress_callback: Callable[[int, str | None], None] | None = None) -> None:
         self._cancel_event = cancel_event
+        self._progress_callback = progress_callback
 
     def cancel_requested(self) -> bool:
         return self._cancel_event.is_set()
@@ -26,6 +27,10 @@ class TaskControl:
     def raise_if_cancelled(self) -> None:
         if self.cancel_requested():
             raise InterruptedError()
+
+    def update_progress(self, progress: int, message: str | None = None) -> None:
+        if self._progress_callback:
+            self._progress_callback(progress, message)
 
 
 class TaskRuntime:
@@ -150,7 +155,8 @@ class TaskRuntime:
                     self._append_log_locked(current, f"Running {task_type}")
                     self._save_locked()
                     payload = current.get("payload") if isinstance(current.get("payload"), dict) else {}
-                result = self._call_handler(self.handlers[task_type], payload, TaskControl(cancel_event))
+                control = TaskControl(cancel_event, lambda progress, message=None: self._update_handler_progress(task_id, progress, message))
+                result = self._call_handler(self.handlers[task_type], payload, control)
                 self._raise_if_cancelled(cancel_event)
                 status_code, result_payload = self._normalize_handler_result(result)
                 if status_code >= 400:
@@ -199,6 +205,17 @@ class TaskRuntime:
         if control_parameter and control_parameter.kind == inspect.Parameter.KEYWORD_ONLY:
             return handler(payload, control=control)
         return handler(payload)
+
+    def _update_handler_progress(self, task_id: str, progress: int, message: str | None = None) -> None:
+        with self._lock:
+            task = self._tasks.get(task_id)
+            if task is None or task.get("status") in TERMINAL_STATUSES:
+                return
+            bounded_progress = max(0, min(99, int(progress)))
+            self._update_locked(task, status="running", progress=bounded_progress, save=False)
+            if message:
+                self._append_log_locked(task, str(message))
+            self._save_locked()
 
     def _update_locked(self, task: dict[str, Any], *, status: str, progress: int, save: bool = True) -> None:
         task["status"] = status

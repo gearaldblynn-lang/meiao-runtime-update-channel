@@ -26595,6 +26595,32 @@ def is_local_media_url(value: str | None) -> bool:
     return parsed.scheme in {"http", "https"} and parsed.hostname in {"127.0.0.1", "localhost"}
 
 
+COPY_CLEAN_COVER_URL_MAX_LENGTH = 500
+COPY_CLEAN_LOCAL_COVER_HOSTS = {"127.0.0.1", "localhost", "::1"}
+
+
+def is_safe_copy_clean_cover_url(value: str | None) -> bool:
+    text = str(value or "").strip()
+    if not text or len(text) > COPY_CLEAN_COVER_URL_MAX_LENGTH:
+        return False
+    parsed = urlparse(text)
+    if parsed.scheme not in {"http", "https"}:
+        return False
+    if (parsed.hostname or "").lower() in COPY_CLEAN_LOCAL_COVER_HOSTS:
+        return False
+    if is_local_media_url(text):
+        return False
+    return True
+
+
+def safe_copy_clean_cover_url(item: dict) -> str:
+    for field in ("remotePosterUrl", "originalPosterUrl", "posterUrl"):
+        value = str(item.get(field) or "").strip()
+        if is_safe_copy_clean_cover_url(value):
+            return value
+    return ""
+
+
 def is_direct_video_url(value: str | None) -> bool:
     if not value:
         return False
@@ -29854,7 +29880,7 @@ class Handler(BaseHTTPRequestHandler):
                     "duration": duration_seconds or 0,
                     "resolution": resolution,
                     "videoName": video_name,
-                    "coverUrl": str(raw_item.get("remotePosterUrl") or raw_item.get("posterUrl") or ""),
+                    "coverUrl": safe_copy_clean_cover_url(raw_item),
                     "url": source_url,
                 }
                 if isinstance(notify_url, str) and notify_url.strip():

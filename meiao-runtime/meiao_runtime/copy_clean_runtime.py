@@ -5,6 +5,7 @@ import inspect
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
+from urllib.parse import urlparse
 
 from .route_helpers import append_debug_log as _append_debug_log
 from .route_helpers import callable_or_raise as _callable
@@ -12,6 +13,8 @@ from .route_helpers import callable_or_raise as _callable
 
 COPY_CLEAN_MAX_DIRECT_DURATION_SECONDS = 180
 COPY_CLEAN_DETECT_MAX_CONCURRENCY = 4
+COPY_CLEAN_COVER_URL_MAX_LENGTH = 500
+COPY_CLEAN_LOCAL_COVER_HOSTS = {"127.0.0.1", "localhost", "::1"}
 
 
 def _item_local_media_path(legacy_globals: dict[str, Any], raw_item: dict[str, Any]) -> Any:
@@ -52,6 +55,38 @@ def _raise_if_cancelled(cancel_control: Any | None) -> None:
     checker = getattr(cancel_control, "raise_if_cancelled", None)
     if callable(checker):
         checker()
+
+
+def _update_submit_progress(cancel_control: Any | None, processed: int, total: int, submitted_count: int, failed_count: int) -> None:
+    updater = getattr(cancel_control, "update_progress", None)
+    if not callable(updater):
+        return
+    progress = 35 if total <= 0 else min(90, 35 + int(max(0, processed) / total * 55))
+    updater(progress, f"Copy-clean submitted {processed}/{total}; upstream={submitted_count}; failed={failed_count}")
+
+
+def _is_safe_copy_clean_cover_url(legacy_globals: dict[str, Any], value: Any) -> bool:
+    text = str(value or "").strip()
+    if not text or len(text) > COPY_CLEAN_COVER_URL_MAX_LENGTH:
+        return False
+    parsed = urlparse(text)
+    if parsed.scheme not in {"http", "https"}:
+        return False
+    hostname = (parsed.hostname or "").lower()
+    if hostname in COPY_CLEAN_LOCAL_COVER_HOSTS:
+        return False
+    local_checker = legacy_globals.get("is_local_media_url")
+    if callable(local_checker) and local_checker(text):
+        return False
+    return True
+
+
+def _safe_copy_clean_cover_url(legacy_globals: dict[str, Any], raw_item: dict[str, Any]) -> str:
+    for field in ("remotePosterUrl", "originalPosterUrl", "posterUrl"):
+        value = str(raw_item.get(field) or "").strip()
+        if _is_safe_copy_clean_cover_url(legacy_globals, value):
+            return value
+    return ""
 
 
 def _call_accepts_cancel_control(func: Any) -> bool:
@@ -249,18 +284,25 @@ def submit(legacy_globals: dict[str, Any], items: list[Any], cancel_control: Any
     failed: list[dict[str, Any]] = []
 
     pending_items = [item for item in items if isinstance(item, dict)]
+    total_items = len(pending_items)
+    processed_items = 0
+    _update_submit_progress(cancel_control, processed_items, total_items, len(submitted), len(failed))
     index = 0
     while index < len(pending_items):
         _raise_if_cancelled(cancel_control)
         raw_item = pending_items[index]
         index += 1
         if not isinstance(raw_item, dict):
+            processed_items += 1
+            _update_submit_progress(cancel_control, processed_items, total_items, len(submitted), len(failed))
             continue
         item_id = str(raw_item.get("id") or "").strip()
         backend_media_id = str(raw_item.get("backendMediaId") or "").strip()
         source_url = _callable(legacy_globals, "build_copy_clean_source_url")(raw_item)
         if not item_id:
             failed.append({"error": "Missing media item id"})
+            processed_items += 1
+            _update_submit_progress(cancel_control, processed_items, total_items, len(submitted), len(failed))
             continue
 
         local_media_dir = legacy_globals["MEDIA_ROOT"] / backend_media_id if backend_media_id else None
@@ -283,6 +325,8 @@ def submit(legacy_globals: dict[str, Any], items: list[Any], cancel_control: Any
             file_size_mb = float(raw_item.get("fileSize") or 0) or None
             if not source_url or not source_url.startswith(("http://", "https://")):
                 failed.append({"itemId": item_id, "error": "Missing accessible video URL"})
+                processed_items += 1
+                _update_submit_progress(cancel_control, processed_items, total_items, len(submitted), len(failed))
                 continue
 
         if (
@@ -296,7 +340,10 @@ def submit(legacy_globals: dict[str, Any], items: list[Any], cancel_control: Any
                 segment_items = _build_auto_split_items(legacy_globals, raw_item, backend_media_id, duration_seconds)
                 if not segment_items:
                     failed.append({"itemId": item_id, "error": "Scene split did not produce copy-clean segments"})
+                    processed_items += 1
+                    _update_submit_progress(cancel_control, processed_items, total_items, len(submitted), len(failed))
                     continue
+                total_items += max(0, len(segment_items) - 1)
                 pending_items[index:index] = segment_items
                 _append_debug_log(
                     legacy_globals,
@@ -306,6 +353,8 @@ def submit(legacy_globals: dict[str, Any], items: list[Any], cancel_control: Any
                 continue
             except Exception as error:
                 failed.append({"itemId": item_id, "error": str(error)})
+                processed_items += 1
+                _update_submit_progress(cancel_control, processed_items, total_items, len(submitted), len(failed))
                 continue
 
         if (not source_url or _callable(legacy_globals, "is_local_media_url")(source_url)) and upload_video_path:
@@ -319,9 +368,13 @@ def submit(legacy_globals: dict[str, Any], items: list[Any], cancel_control: Any
                 raise
             except Exception as error:
                 failed.append({"itemId": item_id, "error": str(error)})
+                processed_items += 1
+                _update_submit_progress(cancel_control, processed_items, total_items, len(submitted), len(failed))
                 continue
         if not source_url:
             failed.append({"itemId": item_id, "error": "Missing public video URL"})
+            processed_items += 1
+            _update_submit_progress(cancel_control, processed_items, total_items, len(submitted), len(failed))
             continue
 
         resolution = f"{width}x{height}"
@@ -333,7 +386,7 @@ def submit(legacy_globals: dict[str, Any], items: list[Any], cancel_control: Any
             "duration": duration_seconds or 0,
             "resolution": resolution,
             "videoName": video_name,
-            "coverUrl": str(raw_item.get("remotePosterUrl") or raw_item.get("posterUrl") or ""),
+            "coverUrl": _safe_copy_clean_cover_url(legacy_globals, raw_item),
             "url": source_url,
         }
         notify_url = raw_item.get("notifyUrl")
@@ -347,10 +400,14 @@ def submit(legacy_globals: dict[str, Any], items: list[Any], cancel_control: Any
             api_code = api_result.get("code")
             if int(api_code if api_code is not None else -1) != 0:
                 failed.append({"itemId": item_id, "error": str(api_result.get("msg") or "Submit failed"), "code": api_result.get("code")})
+                processed_items += 1
+                _update_submit_progress(cancel_control, processed_items, total_items, len(submitted), len(failed))
                 continue
             task_id = str((api_result.get("data") or {}).get("taskId") or "").strip()
             if not task_id:
                 failed.append({"itemId": item_id, "error": "API did not return taskId"})
+                processed_items += 1
+                _update_submit_progress(cancel_control, processed_items, total_items, len(submitted), len(failed))
                 continue
             task = {
                 "itemId": item_id,
@@ -379,10 +436,14 @@ def submit(legacy_globals: dict[str, Any], items: list[Any], cancel_control: Any
                 _update_scene_segment_from_copy_clean_task(legacy_globals, task)
             _callable(legacy_globals, "save_copy_clean_task")(store, task)
             submitted.append(task)
+            processed_items += 1
+            _update_submit_progress(cancel_control, processed_items, total_items, len(submitted), len(failed))
         except InterruptedError:
             raise
         except Exception as error:
             failed.append({"itemId": item_id, "error": str(error)})
+            processed_items += 1
+            _update_submit_progress(cancel_control, processed_items, total_items, len(submitted), len(failed))
 
     _callable(legacy_globals, "write_copy_clean_store")(store)
     _append_debug_log(legacy_globals, "api.copy_clean.submit", {"submitted": len(submitted), "failed": len(failed)})

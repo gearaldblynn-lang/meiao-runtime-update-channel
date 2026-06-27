@@ -1,6 +1,6 @@
 {
-    "version":  "20260627-ocr-detector-8frame-fast-path",
-    "createdAt":  "2026-06-27T07:48:59.9956217Z",
+    "version":  "20260627-copy-clean-batch-submit-timeout-coverurl",
+    "createdAt":  "2026-06-27T08:05:01.0378714Z",
     "channel":  "git-update",
     "payloadMode":  "partial",
     "repository":  "https://github.com/gearaldblynn-lang/meiao-runtime-update-channel.git",
@@ -62,7 +62,7 @@
                              "integrations/capcut_mate/upstream/capcut-mate-main/temp"
                          ],
     "fileCount":  261,
-    "payloadHash":  "c15ce871dce8b37d9c8fe710a2fdcd9f33babc456e2e269aefae9c31d38be274",
+    "payloadHash":  "1fb04ace72fecfdaed334babd03c37f8181a0af8b6869b886cdcc5f377e84677",
     "files":  [
                   {
                       "path":  "backup-runtime-data.ps1",
@@ -80,34 +80,29 @@
                       "size":  150
                   },
                   {
-                      "path":  "frontend/assets/AIOutput-Beop-pGj.js",
-                      "sha256":  "0f3c727ce3c0db6d78b023054baa91f3fa65c858fa32183b4ac0fde15c494b4d",
+                      "path":  "frontend/assets/AIOutput-DdlL-Oa9.js",
+                      "sha256":  "39a604ebb38b8214521c0fc6f1248e30c64913ad987b91f2216863440825ce56",
                       "size":  49936
                   },
                   {
-                      "path":  "frontend/assets/CopyClean-Bt58jeej.js",
-                      "sha256":  "60cdad2113aa3aa30defaff533ff8d8cc710cf62608a5a5866c50c25345a0628",
-                      "size":  47568
+                      "path":  "frontend/assets/CopyClean-Dglv6YSc.js",
+                      "sha256":  "bc33a75122ce430e94f06d2fbd76a8fd3896f84061b2c2099c851d6994c41677",
+                      "size":  47833
                   },
                   {
-                      "path":  "frontend/assets/DraftTemplates-Be797EBK.js",
-                      "sha256":  "3f66280c729f199d32051c0fa951c9efff61ab9bae3023a07b6e6dfa2541c64e",
+                      "path":  "frontend/assets/DraftTemplates-BsvMxV0X.js",
+                      "sha256":  "1d14869e89f17c4a041686acedd020b7a1d7434155cfd070e1deed1d80bb06af",
                       "size":  143962
                   },
                   {
-                      "path":  "frontend/assets/draftTemplates-kUKYsOW0.js",
-                      "sha256":  "3428e8de30c9db6d9c1f942ffd5b5b961d034f3f92501ce09b904b4a704d07ee",
+                      "path":  "frontend/assets/draftTemplates-M8bYpjv5.js",
+                      "sha256":  "71b396058e0a4f6d179d82a87ebb9337c896b37139ec225548b5d2cb06cf3fb5",
                       "size":  17278
                   },
                   {
-                      "path":  "frontend/assets/Fission-C92brMRH.js",
-                      "sha256":  "dcf76d627a908475ac02a4ee79b01ae4f25ce4b782837c10eb9d3a62cb99aa1c",
+                      "path":  "frontend/assets/Fission-B5PeW92J.js",
+                      "sha256":  "8c98ed9812bdd00283e5f820058b795f484985a606ee3a7d7381098b460bf0d1",
                       "size":  173741
-                  },
-                  {
-                      "path":  "frontend/assets/index-CvFRaGpL.js",
-                      "sha256":  "9ccafcb89727c4b1bd8bd94878a62bba51ed5a0f490e0c3a0c629c7dc5b815bd",
-                      "size":  479296
                   },
                   {
                       "path":  "frontend/assets/index-De5R0rjT.css",
@@ -115,8 +110,13 @@
                       "size":  109185
                   },
                   {
-                      "path":  "frontend/assets/OutputTasks-DZj-61F9.js",
-                      "sha256":  "4980024fc615838ad426b9bc867627d029515ea9ec01965657ee84ddc2368c55",
+                      "path":  "frontend/assets/index-DuAKsks8.js",
+                      "sha256":  "4163bbe4978810cc6d0f06d004df3f7fae3a0dbe86a713f0a6cc36007e2578bf",
+                      "size":  479296
+                  },
+                  {
+                      "path":  "frontend/assets/OutputTasks-DTq3UmmE.js",
+                      "sha256":  "d1d49ea443e4fb1a0b3325c018a028f8846c3d5e627acd87ea4654fede78459d",
                       "size":  172472
                   },
                   {
@@ -161,7 +161,7 @@
                   },
                   {
                       "path":  "frontend/index.html",
-                      "sha256":  "eef936d9843653ff794c5ad379a34288e15fa233d584cac68f26124de5fdae82",
+                      "sha256":  "74871c144ca741c227c092a945f7fb444876e366c38dabb003e00088ffcedea7",
                       "size":  560
                   },
                   {
@@ -1141,8 +1141,8 @@
                   },
                   {
                       "path":  "meiao_runtime/copy_clean_runtime.py",
-                      "sha256":  "f73c290e32a7f7ea54e911dff0d8da3f77efe1ad20d13f923687c715a89267a5",
-                      "size":  26310
+                      "sha256":  "a6ee3c68e6ac800ad92d73506db6deb19374423d1ab62e26988ec821844ea397",
+                      "size":  29650
                   },
                   {
                       "path":  "meiao_runtime/diagnosis_runtime.py",
@@ -1271,8 +1271,8 @@
                   },
                   {
                       "path":  "meiao_runtime/task_runtime.py",
-                      "sha256":  "72f466bd06547abf04aff3b3a71f811d63e09568520aa9b05aa11e7000b1358d",
-                      "size":  13991
+                      "sha256":  "3f587caf7bc24d35efb355f78dc45d65e3ec0e5fc80bfbb6ef60ec66a480f21d",
+                      "size":  14952
                   },
                   {
                       "path":  "meiao_runtime/vector_mutation_runtime.py",
@@ -1306,8 +1306,8 @@
                   },
                   {
                       "path":  "server.py",
-                      "sha256":  "e537d734309d75f0512230f0f30916cd4b7360aa739f7083ea3002f070188690",
-                      "size":  1572676
+                      "sha256":  "81e6e0ea914de7a7c6dcc8db0aa41516ceeaa4fc380a8786ae28556ca95a69de",
+                      "size":  1573450
                   },
                   {
                       "path":  "start-meiao.bat",
