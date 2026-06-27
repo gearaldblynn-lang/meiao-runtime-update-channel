@@ -10,7 +10,7 @@ from typing import Any, Callable
 MIN_OCR_CONFIDENCE = 0.55
 _DEFAULT_ENGINE: Any | None = None
 _DEFAULT_ENGINE_LOCK = threading.Lock()
-_DEFAULT_ENGINE_RUN_LOCK = threading.Lock()
+_THREAD_LOCAL = threading.local()
 
 
 def ocr_available() -> bool:
@@ -28,12 +28,13 @@ def _default_engine_factory() -> Any:
 
 def _get_default_engine() -> Any:
     global _DEFAULT_ENGINE
-    if _DEFAULT_ENGINE is not None:
-        return _DEFAULT_ENGINE
+    thread_engine = getattr(_THREAD_LOCAL, "default_ocr_engine", None)
+    if thread_engine is not None:
+        return thread_engine
     with _DEFAULT_ENGINE_LOCK:
-        if _DEFAULT_ENGINE is None:
-            _DEFAULT_ENGINE = _default_engine_factory()
-        return _DEFAULT_ENGINE
+        engine = _default_engine_factory()
+    _THREAD_LOCAL.default_ocr_engine = engine
+    return engine
 
 
 def _full_frame_region(width: int, height: int) -> dict[str, int]:
@@ -162,11 +163,7 @@ def detect_subtitle_region_from_frames(
     boxes: list[dict[str, float]] = []
     for frame in frames:
         try:
-            if uses_default_engine:
-                with _DEFAULT_ENGINE_RUN_LOCK:
-                    raw_items = _unwrap_ocr_result(engine(frame))
-            else:
-                raw_items = _unwrap_ocr_result(engine(frame))
+            raw_items = _unwrap_ocr_result(engine(frame))
         except Exception:
             continue
         for raw_item in raw_items:

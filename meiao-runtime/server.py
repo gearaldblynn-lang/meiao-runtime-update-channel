@@ -27019,12 +27019,12 @@ def copy_clean_full_frame_region(width: int, height: int) -> dict:
 def copy_clean_ocr_sample_count(duration_seconds: float | None) -> int:
     duration = float(duration_seconds or 0)
     if duration <= 0:
-        return 3
-    if duration <= 30:
-        return 3
-    if duration <= 120:
         return 4
-    return 5
+    if duration <= 30:
+        return 4
+    if duration <= 120:
+        return 5
+    return 6
 
 
 COPY_CLEAN_OCR_MAX_WIDTH = 720

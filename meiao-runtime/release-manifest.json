@@ -1,6 +1,6 @@
 {
-    "version":  "20260627-ocr-performance",
-    "createdAt":  "2026-06-27T06:25:49.6385558Z",
+    "version":  "20260627-ocr-concurrency-no-frame-reduction",
+    "createdAt":  "2026-06-27T06:56:22.5185925Z",
     "channel":  "git-update",
     "payloadMode":  "partial",
     "repository":  "https://github.com/gearaldblynn-lang/meiao-runtime-update-channel.git",
@@ -62,7 +62,7 @@
                              "integrations/capcut_mate/upstream/capcut-mate-main/temp"
                          ],
     "fileCount":  261,
-    "payloadHash":  "71ce659d652cb6fcda6baf2837094ef0ee33dd1a2e5b128c41d855182d1e9708",
+    "payloadHash":  "2c235f9aa25427beced4ad00f6a74b08bea77d072223b338421e07a7304d3ad5",
     "files":  [
                   {
                       "path":  "backup-runtime-data.ps1",
@@ -1136,13 +1136,13 @@
                   },
                   {
                       "path":  "meiao_runtime/copy_clean_ocr_runtime.py",
-                      "sha256":  "ba25b84574db304ecb2e340b6c3ea3dbad757258e82450a93167f30133873a52",
-                      "size":  7088
+                      "sha256":  "5f6904ffcd53aeaad163c4da0af143349a96d7ea7e48a922824e363ad46683e0",
+                      "size":  6958
                   },
                   {
                       "path":  "meiao_runtime/copy_clean_runtime.py",
-                      "sha256":  "160b2c0ebef978a1991c530674c04c76fa24c3b4a590eac01730b26e5f204e96",
-                      "size":  22511
+                      "sha256":  "ef0d7c18ed779dbc8386557061e9837e472747385bc2452fc3979486ad49bcf0",
+                      "size":  24533
                   },
                   {
                       "path":  "meiao_runtime/diagnosis_runtime.py",
@@ -1306,7 +1306,7 @@
                   },
                   {
                       "path":  "server.py",
-                      "sha256":  "728d6473b3036dbfdc72093b1eea65985efcdc9917f65c2d36c57acdf1a51c0b",
+                      "sha256":  "3db3ed530b6009fed76c5da55b0f162c5f05508b93f4f603d354d1b87a569659",
                       "size":  1568732
                   },
                   {

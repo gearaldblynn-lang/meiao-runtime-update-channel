@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import os
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
 
 from .route_helpers import append_debug_log as _append_debug_log
@@ -8,6 +10,7 @@ from .route_helpers import callable_or_raise as _callable
 
 
 COPY_CLEAN_MAX_DIRECT_DURATION_SECONDS = 180
+COPY_CLEAN_DETECT_MAX_CONCURRENCY = 4
 
 
 def _item_local_media_path(legacy_globals: dict[str, Any], raw_item: dict[str, Any]) -> Any:
@@ -24,6 +27,22 @@ def _item_local_media_path(legacy_globals: dict[str, Any], raw_item: dict[str, A
 def _uncertain_no_subtitle_detection(detected: dict[str, Any]) -> tuple[bool, str]:
     method = str(detected.get("method") or "").strip()
     return detected.get("hasSubtitle") is False and method != "confirmed-no-subtitle", method
+
+
+def _detect_region_concurrency(item_count: int) -> int:
+    if item_count <= 1:
+        return 1
+    raw_override = str(os.environ.get("MEIAO_COPY_CLEAN_DETECT_CONCURRENCY") or "").strip()
+    if raw_override:
+        try:
+            override = int(raw_override)
+        except ValueError:
+            override = 1
+        return max(1, min(COPY_CLEAN_DETECT_MAX_CONCURRENCY, item_count, override))
+    cpu_count = os.cpu_count() or 2
+    if cpu_count < 4:
+        return 1
+    return min(2, item_count)
 
 
 def _client_state_helpers(legacy_globals: dict[str, Any]) -> tuple[Any, Any]:
@@ -320,6 +339,34 @@ def submit(legacy_globals: dict[str, Any], items: list[Any]) -> dict[str, Any]:
 
 
 def detect_region(legacy_globals: dict[str, Any], items: list[Any]) -> dict[str, Any]:
+    valid_items = [raw_item for raw_item in items if isinstance(raw_item, dict)]
+    concurrency = _detect_region_concurrency(len(valid_items))
+    if concurrency <= 1:
+        result = _detect_region_serial(legacy_globals, valid_items)
+        _append_debug_log(
+            legacy_globals,
+            "api.copy_clean.detect_region",
+            {"detected": len(result.get("regions") or []), "failed": len(result.get("failed") or []), "concurrency": concurrency},
+        )
+        return result
+
+    ordered_results: list[tuple[int, dict[str, Any]]] = []
+    with ThreadPoolExecutor(max_workers=concurrency) as executor:
+        futures = {executor.submit(_detect_region_serial, legacy_globals, [raw_item]): index for index, raw_item in enumerate(valid_items)}
+        for future in as_completed(futures):
+            ordered_results.append((futures[future], future.result()))
+
+    regions: list[dict[str, Any]] = []
+    failed: list[dict[str, Any]] = []
+    for _index, result in sorted(ordered_results, key=lambda item: item[0]):
+        regions.extend(result.get("regions") if isinstance(result.get("regions"), list) else [])
+        failed.extend(result.get("failed") if isinstance(result.get("failed"), list) else [])
+
+    _append_debug_log(legacy_globals, "api.copy_clean.detect_region", {"detected": len(regions), "failed": len(failed), "concurrency": concurrency})
+    return {"regions": regions, "failed": failed}
+
+
+def _detect_region_serial(legacy_globals: dict[str, Any], items: list[Any]) -> dict[str, Any]:
     regions: list[dict[str, Any]] = []
     failed: list[dict[str, Any]] = []
 
@@ -370,7 +417,6 @@ def detect_region(legacy_globals: dict[str, Any], items: list[Any]) -> dict[str,
         except Exception as error:
             failed.append({"itemId": item_id, "error": str(error)})
 
-    _append_debug_log(legacy_globals, "api.copy_clean.detect_region", {"detected": len(regions), "failed": len(failed)})
     return {"regions": regions, "failed": failed}
 
 
