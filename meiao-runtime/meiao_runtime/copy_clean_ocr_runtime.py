@@ -70,6 +70,10 @@ def _box_bounds(raw_box: Any) -> tuple[float, float, float, float] | None:
 
 
 def _parse_ocr_item(item: Any) -> dict[str, Any] | None:
+    bounds = _box_bounds(item)
+    if bounds is not None:
+        x1, y1, x2, y2 = bounds
+        return {"x1": x1, "y1": y1, "x2": x2, "y2": y2, "confidence": 1.0, "text": ""}
     if not isinstance(item, (list, tuple)) or not item:
         return None
     bounds = _box_bounds(item[0])
@@ -102,15 +106,17 @@ def _looks_like_subtitle_box(box: dict[str, Any], width: int, height: int) -> bo
 
     text = str(box.get("text") or "").strip()
     compact_text = re.sub(r"\s+", "", text)
+    width_ratio = box_width / max(1, width)
+    center_x_ratio = ((float(box["x1"]) + float(box["x2"])) / 2) / max(1, width)
+    center_y_ratio = ((float(box["y1"]) + float(box["y2"])) / 2) / max(1, height)
     if not compact_text:
-        return False
+        if center_y_ratio < 0.58:
+            return width_ratio >= 0.40 and center_x_ratio >= 0.18 and center_x_ratio <= 0.82
+        return width_ratio >= 0.18 and center_x_ratio >= 0.16 and center_x_ratio <= 0.84
     if re.fullmatch(r"[\d:：/\\.\-]+", compact_text):
         return False
 
     meaningful_length = _meaningful_text_length(compact_text)
-    width_ratio = box_width / max(1, width)
-    center_x_ratio = ((float(box["x1"]) + float(box["x2"])) / 2) / max(1, width)
-    center_y_ratio = ((float(box["y1"]) + float(box["y2"])) / 2) / max(1, height)
     if center_x_ratio < 0.18 or center_x_ratio > 0.82:
         return False
     if center_y_ratio < 0.58:
@@ -148,6 +154,7 @@ def detect_subtitle_region_from_frames(
     engine_factory: Callable[[], Any] | None = None,
     y_offset: int = 0,
     canvas_height: int | None = None,
+    detection_only: bool = False,
 ) -> dict[str, Any] | None:
     if not frames or width <= 0 or height <= 0:
         return None
@@ -163,7 +170,13 @@ def detect_subtitle_region_from_frames(
     boxes: list[dict[str, float]] = []
     for frame in frames:
         try:
-            raw_items = _unwrap_ocr_result(engine(frame))
+            if detection_only:
+                try:
+                    raw_items = _unwrap_ocr_result(engine(frame, use_cls=False, use_rec=False))
+                except TypeError:
+                    raw_items = _unwrap_ocr_result(engine(frame))
+            else:
+                raw_items = _unwrap_ocr_result(engine(frame))
         except Exception:
             continue
         for raw_item in raw_items:
@@ -180,11 +193,48 @@ def detect_subtitle_region_from_frames(
     if not clusters:
         return None
     if len(clusters) >= 2:
+        if detection_only:
+            cluster_stats = [
+                {
+                    "cluster": cluster,
+                    "count": len(cluster),
+                    "center": statistics.median([(item["y1"] + item["y2"]) / 2 for item in cluster]),
+                }
+                for cluster in clusters
+            ]
+            lower_clusters = [item for item in cluster_stats if float(item["center"]) >= source_height * 0.68]
+            if lower_clusters:
+                strongest_lower = max(lower_clusters, key=lambda item: (int(item["count"]), float(item["center"])))
+                other_count = max([int(item["count"]) for item in cluster_stats if item is not strongest_lower] or [0])
+                if int(strongest_lower["count"]) >= max(4, math.ceil(len(frames) * 0.65)) and other_count <= int(strongest_lower["count"]) * 0.75:
+                    clusters = [strongest_lower["cluster"]]
+                else:
+                    return {
+                        "hasSubtitle": True,
+                        "region": _full_frame_region(width, source_height),
+                        "confidence": 0.72,
+                        "method": "multi-position-ocr-det-full-frame",
+                    }
+            else:
+                return {
+                    "hasSubtitle": True,
+                    "region": _full_frame_region(width, source_height),
+                    "confidence": 0.72,
+                    "method": "multi-position-ocr-det-full-frame",
+                }
+        else:
+            return {
+                "hasSubtitle": True,
+                "region": _full_frame_region(width, source_height),
+                "confidence": 0.72,
+                "method": "multi-position-ocr-full-frame",
+            }
+    if len(clusters) >= 2:
         return {
             "hasSubtitle": True,
             "region": _full_frame_region(width, source_height),
             "confidence": 0.72,
-            "method": "multi-position-ocr-full-frame",
+            "method": "multi-position-ocr-det-full-frame",
         }
 
     cluster = clusters[0]
@@ -195,5 +245,5 @@ def detect_subtitle_region_from_frames(
         "hasSubtitle": True,
         "region": {"x1": 0, "y1": y1, "x2": width, "y2": y2, "sourceWidth": width, "sourceHeight": source_height},
         "confidence": round(max(0.6, min(0.96, avg_confidence)), 2),
-        "method": "ocr-text-line",
+        "method": "ocr-det-text-line" if detection_only else "ocr-text-line",
     }
