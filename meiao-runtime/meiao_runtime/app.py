@@ -154,11 +154,20 @@ def create_app(legacy_handler_cls: type[Any] | None = None) -> FastAPI:
     state_store = StateStore(legacy_globals)
     data_root = Path(legacy_globals.get("DATA_ROOT") or Path.cwd() / "storage")
 
-    def copy_clean_submit_task(payload: dict[str, Any]) -> dict[str, Any]:
+    def copy_clean_submit_task(payload: dict[str, Any], control: Any | None = None) -> dict[str, Any] | tuple[int, dict[str, Any]]:
         items = payload.get("items")
         if not isinstance(items, list):
             raise ValueError("items must be an array")
-        return copy_clean_runtime.submit(legacy_globals, items)
+        result = copy_clean_runtime.submit(legacy_globals, items, cancel_control=control)
+        submitted = result.get("tasks") if isinstance(result.get("tasks"), list) else []
+        failed = result.get("failed") if isinstance(result.get("failed"), list) else []
+        if failed and not submitted:
+            first_error = ""
+            first_failure = failed[0] if isinstance(failed[0], dict) else {}
+            if isinstance(first_failure, dict):
+                first_error = str(first_failure.get("error") or "").strip()
+            return 409, {**result, "error": first_error or "Copy-clean submit failed"}
+        return result
 
     def diagnosis_extract_task(payload: dict[str, Any]) -> tuple[int, dict[str, Any]]:
         return diagnosis_runtime.extract(legacy_globals, payload)

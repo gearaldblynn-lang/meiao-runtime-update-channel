@@ -1,6 +1,6 @@
 {
-    "version":  "20260627-ocr-concurrency-no-frame-reduction",
-    "createdAt":  "2026-06-27T06:56:22.5185925Z",
+    "version":  "20260627-copy-clean-cancel-upload",
+    "createdAt":  "2026-06-27T07:24:03.7326382Z",
     "channel":  "git-update",
     "payloadMode":  "partial",
     "repository":  "https://github.com/gearaldblynn-lang/meiao-runtime-update-channel.git",
@@ -62,7 +62,7 @@
                              "integrations/capcut_mate/upstream/capcut-mate-main/temp"
                          ],
     "fileCount":  261,
-    "payloadHash":  "2c235f9aa25427beced4ad00f6a74b08bea77d072223b338421e07a7304d3ad5",
+    "payloadHash":  "706e27fd98403ff584d2ab3aa7a727e709b397ff185e11d10734f91b9a9494f7",
     "files":  [
                   {
                       "path":  "backup-runtime-data.ps1",
@@ -1101,8 +1101,8 @@
                   },
                   {
                       "path":  "meiao_runtime/app.py",
-                      "sha256":  "7fdf163b2cc2901caf2cc88197f200f2901748acf455ce38d166f59d2b2010d8",
-                      "size":  59729
+                      "sha256":  "a725b84d5b3dd8995386ac2813bd0af046245c009d17b3aca299e3ea009abc6a",
+                      "size":  60365
                   },
                   {
                       "path":  "meiao_runtime/capcut_audio_cache_runtime.py",
@@ -1141,8 +1141,8 @@
                   },
                   {
                       "path":  "meiao_runtime/copy_clean_runtime.py",
-                      "sha256":  "ef0d7c18ed779dbc8386557061e9837e472747385bc2452fc3979486ad49bcf0",
-                      "size":  24533
+                      "sha256":  "f73c290e32a7f7ea54e911dff0d8da3f77efe1ad20d13f923687c715a89267a5",
+                      "size":  26310
                   },
                   {
                       "path":  "meiao_runtime/diagnosis_runtime.py",
@@ -1271,8 +1271,8 @@
                   },
                   {
                       "path":  "meiao_runtime/task_runtime.py",
-                      "sha256":  "d288f909b776d47abfb8f4782031e6775d42cf2311bc17809449be9cd9bb253f",
-                      "size":  12616
+                      "sha256":  "72f466bd06547abf04aff3b3a71f811d63e09568520aa9b05aa11e7000b1358d",
+                      "size":  13991
                   },
                   {
                       "path":  "meiao_runtime/vector_mutation_runtime.py",
@@ -1306,8 +1306,8 @@
                   },
                   {
                       "path":  "server.py",
-                      "sha256":  "3db3ed530b6009fed76c5da55b0f162c5f05508b93f4f603d354d1b87a569659",
-                      "size":  1568732
+                      "sha256":  "8f747842321a55a80a2ba0931ce9e6175dcdc647f030670570cfd3b440963e84",
+                      "size":  1569798
                   },
                   {
                       "path":  "start-meiao.bat",

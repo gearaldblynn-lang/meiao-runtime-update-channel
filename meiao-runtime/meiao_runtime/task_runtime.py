@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import inspect
 import threading
 import time
 import uuid
@@ -13,6 +14,18 @@ SUPPORTED_FIXTURE_TASK_TYPES = {"fixture-success", "fixture-fail", "fixture-slee
 TERMINAL_STATUSES = {"success", "failed", "cancelled", "canceled"}
 COMPACT_VALUE_MAX_BYTES = 800
 COMPACT_MAX_LOGS = 20
+
+
+class TaskControl:
+    def __init__(self, cancel_event: threading.Event) -> None:
+        self._cancel_event = cancel_event
+
+    def cancel_requested(self) -> bool:
+        return self._cancel_event.is_set()
+
+    def raise_if_cancelled(self) -> None:
+        if self.cancel_requested():
+            raise InterruptedError()
 
 
 class TaskRuntime:
@@ -137,7 +150,7 @@ class TaskRuntime:
                     self._append_log_locked(current, f"Running {task_type}")
                     self._save_locked()
                     payload = current.get("payload") if isinstance(current.get("payload"), dict) else {}
-                result = self.handlers[task_type](payload)
+                result = self._call_handler(self.handlers[task_type], payload, TaskControl(cancel_event))
                 self._raise_if_cancelled(cancel_event)
                 status_code, result_payload = self._normalize_handler_result(result)
                 if status_code >= 400:
@@ -166,6 +179,26 @@ class TaskRuntime:
     def _raise_if_cancelled(self, cancel_event: threading.Event) -> None:
         if cancel_event.is_set():
             raise InterruptedError()
+
+    def _call_handler(self, handler: Callable[[dict[str, Any]], Any], payload: dict[str, Any], control: TaskControl) -> Any:
+        try:
+            signature = inspect.signature(handler)
+        except (TypeError, ValueError):
+            return handler(payload)
+        parameters = list(signature.parameters.values())
+        if any(parameter.kind == inspect.Parameter.VAR_POSITIONAL for parameter in parameters):
+            return handler(payload, control)
+        positional = [
+            parameter
+            for parameter in parameters
+            if parameter.kind in (inspect.Parameter.POSITIONAL_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD)
+        ]
+        if len(positional) >= 2:
+            return handler(payload, control)
+        control_parameter = signature.parameters.get("control")
+        if control_parameter and control_parameter.kind == inspect.Parameter.KEYWORD_ONLY:
+            return handler(payload, control=control)
+        return handler(payload)
 
     def _update_locked(self, task: dict[str, Any], *, status: str, progress: int, save: bool = True) -> None:
         task["status"] = status

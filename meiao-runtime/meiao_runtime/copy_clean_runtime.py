@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import inspect
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
@@ -43,6 +44,43 @@ def _detect_region_concurrency(item_count: int) -> int:
     if cpu_count < 4:
         return 1
     return min(2, item_count)
+
+
+def _raise_if_cancelled(cancel_control: Any | None) -> None:
+    if cancel_control is None:
+        return
+    checker = getattr(cancel_control, "raise_if_cancelled", None)
+    if callable(checker):
+        checker()
+
+
+def _call_accepts_cancel_control(func: Any) -> bool:
+    try:
+        signature = inspect.signature(func)
+    except (TypeError, ValueError):
+        return False
+    parameters = list(signature.parameters.values())
+    if any(parameter.kind == inspect.Parameter.VAR_POSITIONAL for parameter in parameters):
+        return True
+    positional = [
+        parameter
+        for parameter in parameters
+        if parameter.kind in (inspect.Parameter.POSITIONAL_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD)
+    ]
+    return len(positional) >= 4
+
+
+def _upload_file_to_kie(
+    legacy_globals: dict[str, Any],
+    file_path: Any,
+    file_name: str,
+    upload_path: str,
+    cancel_control: Any | None,
+) -> str:
+    uploader = _callable(legacy_globals, "upload_file_to_kie")
+    if cancel_control is not None and _call_accepts_cancel_control(uploader):
+        return uploader(file_path, file_name, upload_path, cancel_control)
+    return uploader(file_path, file_name, upload_path)
 
 
 def _client_state_helpers(legacy_globals: dict[str, Any]) -> tuple[Any, Any]:
@@ -205,7 +243,7 @@ def _update_scene_segment_from_copy_clean_task(legacy_globals: dict[str, Any], t
         write_state(state)
 
 
-def submit(legacy_globals: dict[str, Any], items: list[Any]) -> dict[str, Any]:
+def submit(legacy_globals: dict[str, Any], items: list[Any], cancel_control: Any | None = None) -> dict[str, Any]:
     store = _callable(legacy_globals, "read_copy_clean_store")()
     submitted: list[dict[str, Any]] = []
     failed: list[dict[str, Any]] = []
@@ -213,6 +251,7 @@ def submit(legacy_globals: dict[str, Any], items: list[Any]) -> dict[str, Any]:
     pending_items = [item for item in items if isinstance(item, dict)]
     index = 0
     while index < len(pending_items):
+        _raise_if_cancelled(cancel_control)
         raw_item = pending_items[index]
         index += 1
         if not isinstance(raw_item, dict):
@@ -270,9 +309,17 @@ def submit(legacy_globals: dict[str, Any], items: list[Any]) -> dict[str, Any]:
                 continue
 
         if (not source_url or _callable(legacy_globals, "is_local_media_url")(source_url)) and upload_video_path:
-            upload_path = str(_callable(legacy_globals, "get_file_upload_config")()["upload_path"] or "copy-clean/videos").strip()
-            upload_name = f"{_callable(legacy_globals, 'unique_file_token')('copy-clean-upload', backend_media_id or item_id)}{upload_video_path.suffix.lower() or '.mp4'}"
-            source_url = _callable(legacy_globals, "upload_file_to_kie")(upload_video_path, upload_name, upload_path)
+            try:
+                _raise_if_cancelled(cancel_control)
+                upload_path = str(_callable(legacy_globals, "get_file_upload_config")()["upload_path"] or "copy-clean/videos").strip()
+                upload_name = f"{_callable(legacy_globals, 'unique_file_token')('copy-clean-upload', backend_media_id or item_id)}{upload_video_path.suffix.lower() or '.mp4'}"
+                source_url = _upload_file_to_kie(legacy_globals, upload_video_path, upload_name, upload_path, cancel_control)
+                _raise_if_cancelled(cancel_control)
+            except InterruptedError:
+                raise
+            except Exception as error:
+                failed.append({"itemId": item_id, "error": str(error)})
+                continue
         if not source_url:
             failed.append({"itemId": item_id, "error": "Missing public video URL"})
             continue
@@ -294,7 +341,9 @@ def submit(legacy_globals: dict[str, Any], items: list[Any]) -> dict[str, Any]:
             request_body["notifyUrl"] = notify_url.strip()
 
         try:
+            _raise_if_cancelled(cancel_control)
             api_result = _callable(legacy_globals, "call_copy_clean_api")(request_body)
+            _raise_if_cancelled(cancel_control)
             api_code = api_result.get("code")
             if int(api_code if api_code is not None else -1) != 0:
                 failed.append({"itemId": item_id, "error": str(api_result.get("msg") or "Submit failed"), "code": api_result.get("code")})
@@ -330,6 +379,8 @@ def submit(legacy_globals: dict[str, Any], items: list[Any]) -> dict[str, Any]:
                 _update_scene_segment_from_copy_clean_task(legacy_globals, task)
             _callable(legacy_globals, "save_copy_clean_task")(store, task)
             submitted.append(task)
+        except InterruptedError:
+            raise
         except Exception as error:
             failed.append({"itemId": item_id, "error": str(error)})
 

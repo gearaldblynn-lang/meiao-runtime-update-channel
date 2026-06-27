@@ -26617,7 +26617,30 @@ def build_copy_clean_source_url(item: dict) -> str | None:
     return None
 
 
-def upload_file_to_kie(file_path: Path, file_name: str, upload_path: str) -> str:
+def raise_if_upload_cancelled(cancel_control: object | None) -> None:
+    if cancel_control is None:
+        return
+    checker = getattr(cancel_control, "raise_if_cancelled", None)
+    if callable(checker):
+        checker()
+
+
+class CancelAwareUploadFile:
+    def __init__(self, file_obj: object, cancel_control: object | None) -> None:
+        self._file_obj = file_obj
+        self._cancel_control = cancel_control
+
+    def read(self, *args: object, **kwargs: object) -> object:
+        raise_if_upload_cancelled(self._cancel_control)
+        chunk = self._file_obj.read(*args, **kwargs)
+        raise_if_upload_cancelled(self._cancel_control)
+        return chunk
+
+    def __getattr__(self, name: str) -> object:
+        return getattr(self._file_obj, name)
+
+
+def upload_file_to_kie(file_path: Path, file_name: str, upload_path: str, cancel_control: object | None = None) -> str:
     config = get_file_upload_config()
     if not config["api_key"]:
         raise IngestError("未配置图床 API Key。请在 backend/config.local.json 中补充 file_upload.api_key。")
@@ -26626,9 +26649,11 @@ def upload_file_to_kie(file_path: Path, file_name: str, upload_path: str) -> str
     last_error: Exception | None = None
     response = None
     for attempt in range(3):
+        raise_if_upload_cancelled(cancel_control)
         try:
             with file_path.open("rb") as file_obj:
                 with KIE_FILE_UPLOAD_SEMAPHORE:
+                    raise_if_upload_cancelled(cancel_control)
                     response = requests.post(
                         f"{config['base_url']}/api/file-stream-upload",
                         headers={
@@ -26641,13 +26666,16 @@ def upload_file_to_kie(file_path: Path, file_name: str, upload_path: str) -> str
                             "fileName": file_name,
                         },
                         files={
-                            "file": (file_name or file_path.name, file_obj, content_type),
+                            "file": (file_name or file_path.name, CancelAwareUploadFile(file_obj, cancel_control), content_type),
                         },
                         timeout=300,
                         **get_local_proxy_requests_kwargs(),
                     )
+                    raise_if_upload_cancelled(cancel_control)
             if response.ok:
                 break
+        except InterruptedError:
+            raise
         except Exception as exc:
             last_error = exc
             append_debug_log("file_upload.retry", {"attempt": attempt + 1, "fileName": file_name, "error": str(exc)})
