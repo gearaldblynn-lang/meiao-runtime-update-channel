@@ -1,6 +1,6 @@
 {
-    "version":  "20260626-ocr-real-video-tuning",
-    "createdAt":  "2026-06-26T09:48:16.6639302Z",
+    "version":  "20260627-ocr-performance",
+    "createdAt":  "2026-06-27T06:25:49.6385558Z",
     "channel":  "git-update",
     "payloadMode":  "partial",
     "repository":  "https://github.com/gearaldblynn-lang/meiao-runtime-update-channel.git",
@@ -62,7 +62,7 @@
                              "integrations/capcut_mate/upstream/capcut-mate-main/temp"
                          ],
     "fileCount":  261,
-    "payloadHash":  "6b3b2f432aa1936db9ade94e779bd90daed223544bdc992ed9837c3d8012b2d6",
+    "payloadHash":  "71ce659d652cb6fcda6baf2837094ef0ee33dd1a2e5b128c41d855182d1e9708",
     "files":  [
                   {
                       "path":  "backup-runtime-data.ps1",
@@ -1136,8 +1136,8 @@
                   },
                   {
                       "path":  "meiao_runtime/copy_clean_ocr_runtime.py",
-                      "sha256":  "c2578487afc49e77a558415b780a088139035efa01ec80247f02edecb0377863",
-                      "size":  6053
+                      "sha256":  "ba25b84574db304ecb2e340b6c3ea3dbad757258e82450a93167f30133873a52",
+                      "size":  7088
                   },
                   {
                       "path":  "meiao_runtime/copy_clean_runtime.py",
@@ -1306,8 +1306,8 @@
                   },
                   {
                       "path":  "server.py",
-                      "sha256":  "6c905dc6fc35aacd29b180192d8ac23e69d139992d01136acec6ede51544f507",
-                      "size":  1567904
+                      "sha256":  "728d6473b3036dbfdc72093b1eea65985efcdc9917f65c2d36c57acdf1a51c0b",
+                      "size":  1568732
                   },
                   {
                       "path":  "start-meiao.bat",

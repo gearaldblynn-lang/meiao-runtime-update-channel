@@ -3,10 +3,14 @@ from __future__ import annotations
 import math
 import re
 import statistics
+import threading
 from typing import Any, Callable
 
 
 MIN_OCR_CONFIDENCE = 0.55
+_DEFAULT_ENGINE: Any | None = None
+_DEFAULT_ENGINE_LOCK = threading.Lock()
+_DEFAULT_ENGINE_RUN_LOCK = threading.Lock()
 
 
 def ocr_available() -> bool:
@@ -20,6 +24,16 @@ def ocr_available() -> bool:
 def _default_engine_factory() -> Any:
     from rapidocr_onnxruntime import RapidOCR
     return RapidOCR()
+
+
+def _get_default_engine() -> Any:
+    global _DEFAULT_ENGINE
+    if _DEFAULT_ENGINE is not None:
+        return _DEFAULT_ENGINE
+    with _DEFAULT_ENGINE_LOCK:
+        if _DEFAULT_ENGINE is None:
+            _DEFAULT_ENGINE = _default_engine_factory()
+        return _DEFAULT_ENGINE
 
 
 def _full_frame_region(width: int, height: int) -> dict[str, int]:
@@ -131,47 +145,58 @@ def detect_subtitle_region_from_frames(
     width: int,
     height: int,
     engine_factory: Callable[[], Any] | None = None,
+    y_offset: int = 0,
+    canvas_height: int | None = None,
 ) -> dict[str, Any] | None:
     if not frames or width <= 0 or height <= 0:
         return None
+    source_height = max(height, int(canvas_height or height))
+    vertical_offset = max(0, int(y_offset or 0))
 
+    uses_default_engine = engine_factory is None
     try:
-        engine = (engine_factory or _default_engine_factory)()
+        engine = _get_default_engine() if uses_default_engine else engine_factory()
     except Exception:
         return None
 
     boxes: list[dict[str, float]] = []
     for frame in frames:
         try:
-            raw_items = _unwrap_ocr_result(engine(frame))
+            if uses_default_engine:
+                with _DEFAULT_ENGINE_RUN_LOCK:
+                    raw_items = _unwrap_ocr_result(engine(frame))
+            else:
+                raw_items = _unwrap_ocr_result(engine(frame))
         except Exception:
             continue
         for raw_item in raw_items:
             box = _parse_ocr_item(raw_item)
             if box is None:
                 continue
-            if not _looks_like_subtitle_box(box, width, height):
+            if vertical_offset:
+                box = {**box, "y1": float(box["y1"]) + vertical_offset, "y2": float(box["y2"]) + vertical_offset}
+            if not _looks_like_subtitle_box(box, width, source_height):
                 continue
             boxes.append(box)
 
-    clusters = _stable_clusters(boxes, len(frames), height)
+    clusters = _stable_clusters(boxes, len(frames), source_height)
     if not clusters:
         return None
     if len(clusters) >= 2:
         return {
             "hasSubtitle": True,
-            "region": _full_frame_region(width, height),
+            "region": _full_frame_region(width, source_height),
             "confidence": 0.72,
             "method": "multi-position-ocr-full-frame",
         }
 
     cluster = clusters[0]
-    y1 = max(0, min(height - 1, round(min(item["y1"] for item in cluster) - height * 0.02)))
-    y2 = max(y1 + 1, min(height, round(max(item["y2"] for item in cluster) + height * 0.03)))
+    y1 = max(0, min(source_height - 1, round(min(item["y1"] for item in cluster) - source_height * 0.02)))
+    y2 = max(y1 + 1, min(source_height, round(max(item["y2"] for item in cluster) + source_height * 0.03)))
     avg_confidence = sum(float(item["confidence"]) for item in cluster) / max(1, len(cluster))
     return {
         "hasSubtitle": True,
-        "region": {"x1": 0, "y1": y1, "x2": width, "y2": y2, "sourceWidth": width, "sourceHeight": height},
+        "region": {"x1": 0, "y1": y1, "x2": width, "y2": y2, "sourceWidth": width, "sourceHeight": source_height},
         "confidence": round(max(0.6, min(0.96, avg_confidence)), 2),
         "method": "ocr-text-line",
     }

@@ -27019,55 +27019,69 @@ def copy_clean_full_frame_region(width: int, height: int) -> dict:
 def copy_clean_ocr_sample_count(duration_seconds: float | None) -> int:
     duration = float(duration_seconds or 0)
     if duration <= 0:
-        return 4
+        return 3
     if duration <= 30:
-        return 4
+        return 3
     if duration <= 120:
-        return 5
-    return 6
+        return 4
+    return 5
+
+
+COPY_CLEAN_OCR_MAX_WIDTH = 720
+COPY_CLEAN_OCR_CROP_TOP_RATIO = 0.20
+COPY_CLEAN_OCR_CROP_BOTTOM_RATIO = 0.90
 
 
 def copy_clean_detect_region_with_ocr(video_path: Path, width: int, height: int, duration_seconds: float | None) -> dict | None:
     if not copy_clean_ocr_runtime.ocr_available():
         return None
     ocr_started_at = time.perf_counter()
-    ocr_width = min(width, 960)
+    ocr_width = min(width, COPY_CLEAN_OCR_MAX_WIDTH)
     ocr_height = max(2, int(round((height * ocr_width / width) / 2) * 2))
     sample_count = copy_clean_ocr_sample_count(duration_seconds)
-    sample_fps = sample_count / max(1.0, float(duration_seconds or 0))
-    frame_size = ocr_width * ocr_height * 3
-    command = [
-        str(FFMPEG_EXE),
-        "-v",
-        "error",
-        "-i",
-        str(video_path),
-        "-vf",
-        f"fps={sample_fps:.4f},scale={ocr_width}:{ocr_height},format=rgb24",
-        "-frames:v",
-        str(sample_count + 1),
-        "-f",
-        "rawvideo",
-        "-pix_fmt",
-        "rgb24",
-        "pipe:1",
-    ]
+    duration = max(0.0, float(duration_seconds or 0))
+    crop_top = max(0, min(ocr_height - 2, int(round((ocr_height * COPY_CLEAN_OCR_CROP_TOP_RATIO) / 2) * 2)))
+    crop_bottom = max(crop_top + 2, min(ocr_height, int(round((ocr_height * COPY_CLEAN_OCR_CROP_BOTTOM_RATIO) / 2) * 2)))
+    crop_height = crop_bottom - crop_top
+    frame_size = ocr_width * crop_height * 3
     try:
-        completed = subprocess.run(command, capture_output=True, timeout=60)
-        if completed.returncode != 0 or not completed.stdout:
-            return None
         from PIL import Image
 
-        raw = completed.stdout
-        frame_count = len(raw) // frame_size
         frames = []
-        for frame_index in range(frame_count):
-            frame_offset = frame_index * frame_size
-            frame_bytes = raw[frame_offset: frame_offset + frame_size]
-            if len(frame_bytes) != frame_size:
+        timestamps = [duration * ((index + 1) / (sample_count + 1)) for index in range(sample_count)] if duration > 0 else []
+        for timestamp in timestamps:
+            command = [
+                str(FFMPEG_EXE),
+                "-v",
+                "error",
+                "-ss",
+                f"{timestamp:.3f}",
+                "-i",
+                str(video_path),
+                "-frames:v",
+                "1",
+                "-vf",
+                f"scale={ocr_width}:{ocr_height},crop={ocr_width}:{crop_height}:0:{crop_top},format=rgb24",
+                "-f",
+                "rawvideo",
+                "-pix_fmt",
+                "rgb24",
+                "pipe:1",
+            ]
+            completed = subprocess.run(command, capture_output=True, timeout=20)
+            if completed.returncode != 0 or len(completed.stdout) < frame_size:
                 continue
-            frames.append(Image.frombytes("RGB", (ocr_width, ocr_height), frame_bytes))
-        detected = copy_clean_ocr_runtime.detect_subtitle_region_from_frames(frames, ocr_width, ocr_height)
+            frame_bytes = completed.stdout[:frame_size]
+            frames.append(Image.frombytes("RGB", (ocr_width, crop_height), frame_bytes))
+        if not frames:
+            return None
+        detected = copy_clean_ocr_runtime.detect_subtitle_region_from_frames(
+            frames,
+            ocr_width,
+            crop_height,
+            y_offset=crop_top,
+            canvas_height=ocr_height,
+        )
         if not isinstance(detected, dict) or not isinstance(detected.get("region"), dict):
             return None
         region = normalize_copy_clean_region(detected["region"], width, height)
@@ -27078,6 +27092,10 @@ def copy_clean_detect_region_with_ocr(video_path: Path, width: int, height: int,
                 "duration": duration_seconds,
                 "samples": sample_count,
                 "frames": len(frames),
+                "ocrWidth": ocr_width,
+                "ocrHeight": ocr_height,
+                "cropTop": crop_top,
+                "cropBottom": crop_bottom,
                 "method": detected.get("method"),
                 "elapsedMs": round((time.perf_counter() - ocr_started_at) * 1000),
             },
