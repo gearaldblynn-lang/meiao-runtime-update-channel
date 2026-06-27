@@ -3338,17 +3338,38 @@ def build_recovered_client_state() -> dict:
         if isinstance(item, dict) and item.get("backendMediaId") and item.get("id")
     }
     copy_tasks = state.get("meiao-copy-clean-tasks") if isinstance(state.get("meiao-copy-clean-tasks"), dict) else {}
-    if not copy_tasks:
-        copy_store = read_copy_clean_store()
-        for raw_task in copy_store.get("tasks", {}).values():
-            if not isinstance(raw_task, dict):
-                continue
-            task = dict(raw_task)
-            mapped_item_id = media_to_ingest.get(str(task.get("backendMediaId") or ""))
-            item_id = mapped_item_id or str(task.get("itemId") or "").strip()
-            if not item_id:
-                continue
-            task["itemId"] = item_id
+
+    def should_replace_copy_task(existing: dict | None, candidate: dict) -> bool:
+        if not isinstance(existing, dict):
+            return True
+        existing_status = str(existing.get("status") or "").strip().lower()
+        candidate_status = str(candidate.get("status") or "").strip().lower()
+        existing_updated = int(existing.get("updatedAt") or existing.get("createdAt") or 0)
+        candidate_updated = int(candidate.get("updatedAt") or candidate.get("createdAt") or 0)
+        existing_task_id = str(existing.get("taskId") or "").strip()
+        candidate_task_id = str(candidate.get("taskId") or "").strip()
+        active_statuses = {"submitted", "queued", "waiting", "doing", "running", "canceling"}
+        existing_active = existing_status in active_statuses
+        candidate_active = candidate_status in active_statuses
+        if candidate_task_id and candidate_task_id == existing_task_id:
+            return candidate_updated >= existing_updated
+        if candidate_active and not existing_active:
+            return candidate_updated >= existing_updated
+        if existing_active and not candidate_active:
+            return candidate_updated > existing_updated
+        return candidate_updated > existing_updated
+
+    copy_store = read_copy_clean_store()
+    for raw_task in copy_store.get("tasks", {}).values():
+        if not isinstance(raw_task, dict):
+            continue
+        task = dict(raw_task)
+        mapped_item_id = media_to_ingest.get(str(task.get("backendMediaId") or ""))
+        item_id = mapped_item_id or str(task.get("itemId") or "").strip()
+        if not item_id:
+            continue
+        task["itemId"] = item_id
+        if should_replace_copy_task(copy_tasks.get(item_id), task):
             copy_tasks[item_id] = task
     copy_tasks = {
         str(item_id): task
@@ -3425,6 +3446,28 @@ def build_recovered_client_state() -> dict:
             record["ingestId"] = ingest_id
             queue.add(ingest_id)
 
+    def copy_clean_unified_task_from_task(task: dict) -> dict | None:
+        item_id = str(task.get("itemId") or "").strip()
+        backend_task_id = str(task.get("taskId") or "").strip()
+        if not item_id or not backend_task_id:
+            return None
+        status = str(task.get("status") or "").strip()
+        if status not in {"submitted", "waiting", "doing", "queued", "running"}:
+            return None
+        return {
+            "taskId": f"copy-clean:{backend_task_id}",
+            "kind": "copy_clean",
+            "title": "Copy-clean task",
+            "stage": "submitted",
+            "status": "running",
+            "progress": max(0, min(99, client_state_number(task.get("progress")))),
+            "createdAt": client_state_number(task.get("createdAt")) or int(time.time() * 1000),
+            "updatedAt": client_state_number(task.get("updatedAt")) or int(time.time() * 1000),
+            "backendTaskId": backend_task_id,
+            "dedupeKey": f"copy-clean:{item_id}",
+            "sourcePage": "/copy-clean",
+        }
+
     batch_projects = normalize_batch_draft_projects([
         *read_batch_draft_projects(),
         *(state.get("meiao-batch-draft-projects") if isinstance(state.get("meiao-batch-draft-projects"), list) else []),
@@ -3462,6 +3505,29 @@ def build_recovered_client_state() -> dict:
         append_debug_log("client_state.recover.flow_fission_assets", {"recovered": len(recovered_fission_assets), "total": len(fission_assets)})
     fission_assets = bind_flow_fission_assets_to_slots(fission_assets, fission_jobs)
     fission_jobs = normalize_flow_fission_jobs_for_recovery(fission_jobs, fission_assets)
+    unified_tasks = normalize_flow_fission_unified_tasks(state.get("meiao-unified-tasks"), fission_jobs)
+    recovered_copy_unified_tasks = [
+        task
+        for task in (copy_clean_unified_task_from_task(copy_task) for copy_task in copy_tasks.values() if isinstance(copy_task, dict))
+        if isinstance(task, dict)
+    ]
+    if recovered_copy_unified_tasks:
+        active_copy_tasks_by_dedupe = {
+            str(task.get("dedupeKey") or "").strip(): str(task.get("taskId") or "").strip()
+            for task in recovered_copy_unified_tasks
+            if str(task.get("dedupeKey") or "").strip() and str(task.get("taskId") or "").strip()
+        }
+        unified_tasks = [
+            task
+            for task in unified_tasks
+            if not (
+                isinstance(task, dict)
+                and str(task.get("dedupeKey") or "").strip() in active_copy_tasks_by_dedupe
+                and str(task.get("taskId") or "").strip()
+                != active_copy_tasks_by_dedupe[str(task.get("dedupeKey") or "").strip()]
+            )
+        ]
+        unified_tasks = normalize_unified_client_tasks([*recovered_copy_unified_tasks, *unified_tasks])
 
     recovered = {
         "meiao-ingest-items": ingest_items,
@@ -3477,7 +3543,7 @@ def build_recovered_client_state() -> dict:
         "meiao-script-quality": {key: "已通过" for key in split_records.keys()},
         "meiao-output-tasks": filter_project_scoped_list(state.get("meiao-output-tasks"), active_project_ids),
         "meiao-output-records": filter_project_scoped_list(state.get("meiao-output-records"), active_project_ids),
-        "meiao-unified-tasks": normalize_flow_fission_unified_tasks(state.get("meiao-unified-tasks"), fission_jobs),
+        "meiao-unified-tasks": unified_tasks,
         "meiao-unified-task-tombstones": state.get("meiao-unified-task-tombstones") if isinstance(state.get("meiao-unified-task-tombstones"), dict) else {},
         "meiao-ab-dedup-results": state.get("meiao-ab-dedup-results") if isinstance(state.get("meiao-ab-dedup-results"), list) else [],
         "meiao-storage-preferences": state.get("meiao-storage-preferences") if isinstance(state.get("meiao-storage-preferences"), dict) else {},
