@@ -77,20 +77,6 @@ function Test-RuntimeHealth {
     if ($response.StatusCode -ne 200 -or $response.Content -notlike "*ok*") {
       return $false
     }
-    $environment = Get-EnvironmentPayload
-    if (-not $environment) {
-      Write-StartupLog "health passed but environment endpoint is unavailable"
-      return $false
-    }
-    if (-not $environment.baseDir) {
-      Write-StartupLog "health passed but environment payload is missing baseDir"
-      return $false
-    }
-    $runtimeBase = Normalize-PathForCompare ([System.IO.Path]::GetFullPath([string]$environment.baseDir).TrimEnd([char]"\"))
-    if ($runtimeBase -ne $resolvedRuntimeRoot) {
-      Write-StartupLog ("healthy port belongs to another runtime baseDir={0}" -f $environment.baseDir)
-      return $false
-    }
     if (-not (Test-RuntimeRouteFreshness)) {
       return $false
     }
@@ -129,9 +115,45 @@ function Test-RuntimeRouteFreshness {
   }
 }
 
+function Get-ListeningProcessIds {
+  param([int]$TargetPort)
+  $processIds = @()
+  try {
+    $lines = & netstat -ano -p tcp 2>$null
+    foreach ($line in $lines) {
+      $trimmed = ([string]$line).Trim()
+      if ([string]::IsNullOrWhiteSpace($trimmed) -or $trimmed -notmatch "\sLISTENING\s") {
+        continue
+      }
+      $parts = $trimmed -split "\s+"
+      if ($parts.Count -lt 5) {
+        continue
+      }
+      $localAddress = [string]$parts[1]
+      if (-not $localAddress.EndsWith(":$TargetPort")) {
+        continue
+      }
+      $parsedPid = 0
+      if ([int]::TryParse([string]$parts[-1], [ref]$parsedPid) -and $parsedPid -gt 0) {
+        $processIds += $parsedPid
+      }
+    }
+    if ($processIds.Count -gt 0) {
+      return @($processIds | Select-Object -Unique)
+    }
+  } catch {
+  }
+  try {
+    $connections = @(Get-NetTCPConnection -LocalPort $TargetPort -State Listen -ErrorAction SilentlyContinue)
+    return @($connections | Select-Object -ExpandProperty OwningProcess -Unique)
+  } catch {
+    return @()
+  }
+}
+
 function Test-RuntimeProcessFreshness {
-  $connections = @(Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue)
-  if ($connections.Count -eq 0) {
+  $processIds = @(Get-ListeningProcessIds -TargetPort $port)
+  if ($processIds.Count -eq 0) {
     Write-StartupLog "runtime freshness failed; no listening process"
     return $false
   }
@@ -144,18 +166,18 @@ function Test-RuntimeProcessFreshness {
       $serverWriteTime = $packageNewest.LastWriteTime
     }
   }
-  foreach ($connection in $connections) {
-    if (-not (Test-ProcessBelongsToRuntime $connection.OwningProcess)) {
-      Write-StartupLog ("runtime freshness failed; port owner pid={0} does not belong to this runtime" -f $connection.OwningProcess)
+  foreach ($processId in $processIds) {
+    if (-not (Test-ProcessBelongsToRuntime $processId)) {
+      Write-StartupLog ("runtime freshness failed; port owner pid={0} does not belong to this runtime" -f $processId)
       return $false
     }
-    $process = Get-Process -Id $connection.OwningProcess -ErrorAction SilentlyContinue
+    $process = Get-Process -Id $processId -ErrorAction SilentlyContinue
     if (-not $process) {
-      Write-StartupLog ("runtime freshness failed; port owner pid={0} disappeared" -f $connection.OwningProcess)
+      Write-StartupLog ("runtime freshness failed; port owner pid={0} disappeared" -f $processId)
       return $false
     }
     if ($process.StartTime.AddSeconds(2) -lt $serverWriteTime) {
-      Write-StartupLog ("runtime freshness failed; pid={0} started={1:o} server={2:o}" -f $connection.OwningProcess, $process.StartTime, $serverWriteTime)
+      Write-StartupLog ("runtime freshness failed; pid={0} started={1:o} server={2:o}" -f $processId, $process.StartTime, $serverWriteTime)
       return $false
     }
   }
@@ -222,22 +244,21 @@ function Stop-RuntimeServerProcesses {
 }
 
 function Stop-BrokenPortOwner {
-  $connections = @(Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue)
-  foreach ($connection in $connections) {
-    $ownerProcess = Get-Process -Id $connection.OwningProcess -ErrorAction SilentlyContinue
-    if ($ownerProcess -and $ownerProcess.ProcessName -eq "python" -and (Test-ProcessBelongsToRuntime $connection.OwningProcess)) {
-      Write-StartupLog ("stopping broken port owner pid={0}" -f $connection.OwningProcess)
-      Stop-Process -Id $connection.OwningProcess -Force -ErrorAction SilentlyContinue
+  $processIds = @(Get-ListeningProcessIds -TargetPort $port)
+  foreach ($processId in $processIds) {
+    $ownerProcess = Get-Process -Id $processId -ErrorAction SilentlyContinue
+    if ($ownerProcess -and $ownerProcess.ProcessName -eq "python" -and (Test-ProcessBelongsToRuntime $processId)) {
+      Write-StartupLog ("stopping broken port owner pid={0}" -f $processId)
+      Stop-Process -Id $processId -Force -ErrorAction SilentlyContinue
     } else {
-      throw "Port $port is occupied by pid $($connection.OwningProcess), but it is not this runtime process. Close it or change the runtime port."
+      throw "Port $port is occupied by pid $processId, but it is not this runtime process. Close it or change the runtime port."
     }
   }
 }
 
 function Test-PortListening {
   param([int]$TargetPort)
-  $connections = @(Get-NetTCPConnection -LocalPort $TargetPort -State Listen -ErrorAction SilentlyContinue)
-  return $connections.Count -gt 0
+  return @(Get-ListeningProcessIds -TargetPort $TargetPort).Count -gt 0
 }
 
 function Test-UsablePythonPath {
@@ -285,9 +306,9 @@ function Resolve-CapCutMatePython {
 
   foreach ($candidate in @($candidates | Select-Object -Unique)) {
     try {
-      $probe = & $candidate -c "import sys; print(sys.executable)" 2>$null | Select-Object -First 1
-      if (Test-UsablePythonPath $probe) {
-        return [string]$probe
+      & $candidate -c "import sys" 2>$null | Out-Null
+      if ($LASTEXITCODE -eq 0 -and (Test-UsablePythonPath $candidate)) {
+        return [string]$candidate
       }
     } catch {
       Write-StartupLog ("capcut-mate python probe failed path={0} error={1}" -f $candidate, $_.Exception.Message)
@@ -402,11 +423,11 @@ function Start-CapCutMate {
     $pythonPathParts += $previousPythonPath
   }
   $env:PYTHONPATH = ($pythonPathParts -join [System.IO.Path]::PathSeparator)
-  $bootstrapCode = "import os,runpy,sys; root=os.environ['MEIAO_CAPCUT_MATE_ROOT']; vendor=os.environ.get('MEIAO_RUNTIME_VENDOR',''); [sys.path.insert(0,p) for p in [vendor,root] if p and os.path.isdir(p) and p not in sys.path]; os.chdir(root); runpy.run_path('main.py', run_name='__main__')"
+  $capcutMateBootstrap = "integrations\capcut_mate\bootstrap.py"
   $process = Start-Process `
     -FilePath $capcutMatePython `
-    -ArgumentList @("-u", "-c", $bootstrapCode) `
-    -WorkingDirectory $capcutMateRoot `
+    -ArgumentList @("-u", $capcutMateBootstrap) `
+    -WorkingDirectory $runtimeRoot `
     -RedirectStandardOutput $capcutMateOutLog `
     -RedirectStandardError $capcutMateErrLog `
     -PassThru `
@@ -424,6 +445,14 @@ if (-not (Test-Path $serverPath)) {
 }
 
 Repair-FFmpegRuntimeIfNeeded
+
+if (Test-RuntimeHealth) {
+  Write-StartupLog "existing runtime is healthy; reusing it before capcut-mate sidecar preflight"
+  Write-Host "MEIAO runtime is already running."
+  Write-Host "Open http://127.0.0.1:8787 in your browser."
+  exit 0
+}
+
 Start-CapCutMate
 
 if (Test-Path -LiteralPath $goRuntimePath) {

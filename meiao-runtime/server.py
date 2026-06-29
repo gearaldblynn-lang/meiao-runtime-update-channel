@@ -1,13 +1,12 @@
 ﻿import json
 import os
+import csv
 import base64
 import configparser
 import math
 import hashlib
-import imghdr
 import ipaddress
-from io import BytesIO
-import cgi
+from io import BytesIO, StringIO
 import mimetypes
 import re
 import shutil
@@ -27,7 +26,7 @@ import copy
 import ctypes
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse, unquote, quote, parse_qs
@@ -51,6 +50,24 @@ from meiao_runtime import copy_clean_ocr_runtime, flow_progress_runtime, flow_re
 HOST = "127.0.0.1"
 PORT = 8787
 CONFIG_FILE = Path(os.environ.get("MEIAO_CONFIG_FILE") or BASE_DIR / "config.local.json").expanduser()
+
+
+def detect_image_suffix(data: bytes) -> str:
+    if data.startswith(b"\xff\xd8\xff"):
+        return ".jpg"
+    if data.startswith(b"\x89PNG\r\n\x1a\n"):
+        return ".png"
+    if data[:6] in {b"GIF87a", b"GIF89a"}:
+        return ".gif"
+    if data.startswith(b"RIFF") and data[8:12] == b"WEBP":
+        return ".webp"
+    return ""
+
+
+def load_cgi_module():
+    import cgi as cgi_module
+
+    return cgi_module
 
 
 def resolve_data_root_setting() -> tuple[str | None, str, str | None]:
@@ -216,6 +233,7 @@ CLASH_COMMON_CONTROLLERS = [
     "http://127.0.0.1:6170",
     "http://127.0.0.1:11223",
 ]
+LAST_CLASH_CONTROLLER: str | None = None
 CLASH_COMMON_PROXY_PORTS = [7897, 7890, 7891, 7892, 1080, 10808, 10809]
 CLASH_EXCLUDED_NODE_TOKENS = [
     "中国", "大陆", "国内", "香港", "澳门", "台湾",
@@ -959,6 +977,7 @@ def write_media_library_items(items: list[dict]) -> None:
         tmp_file = MEDIA_LIBRARY_FILE.with_suffix(".tmp")
         tmp_file.write_text(json.dumps(items, ensure_ascii=False, indent=2), encoding="utf-8")
         tmp_file.replace(MEDIA_LIBRARY_FILE)
+    clear_client_state_health_cache()
 
 
 def read_deleted_media_map(state: dict | None = None) -> dict[str, int]:
@@ -1008,27 +1027,76 @@ def filter_ingest_items_for_deleted_media(items: object, deleted_media: dict[str
     ]
 
 
-def recover_media_library_items_from_disk() -> list[dict]:
+MEDIA_LIBRARY_RECOVERY_SKIP_NAMES = {
+    "bgm-library",
+    "capcut-fonts",
+    "capcut-test-audio",
+    "_capcut_assets",
+    "__capcut_assets__",
+    "__dedupe_aux__",
+}
+MEDIA_LIBRARY_RECOVERY_SKIP_PREFIXES = ("ab-dedup-", "flow-fission-")
+
+
+def media_recovery_candidate_dirs(deleted_media: dict[str, int] | None = None) -> list[Path]:
     if not MEDIA_ROOT.exists():
         return []
+    deleted = deleted_media if isinstance(deleted_media, dict) else read_deleted_media_map()
+    candidates: list[Path] = []
+    try:
+        entries = list(MEDIA_ROOT.iterdir())
+    except OSError:
+        return []
+    for media_dir in entries:
+        try:
+            is_dir = media_dir.is_dir()
+        except OSError:
+            continue
+        if not is_dir:
+            continue
+        name = media_dir.name
+        if (
+            name in deleted
+            or name in MEDIA_LIBRARY_RECOVERY_SKIP_NAMES
+            or name.startswith(MEDIA_LIBRARY_RECOVERY_SKIP_PREFIXES)
+            or name.startswith("_")
+        ):
+            continue
+        candidates.append(media_dir)
+    return sorted(candidates, key=lambda item: item.stat().st_mtime if item.exists() else 0, reverse=True)
+
+
+def media_library_saved_media_ids(items: object) -> set[str]:
+    if not isinstance(items, list):
+        return set()
+    media_ids: set[str] = set()
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        media_ids.update(ingest_item_media_ids(item))
+        media_id = str(item.get("backendMediaId") or "").strip()
+        if media_id:
+            media_ids.add(media_id)
+    return {media_id for media_id in media_ids if media_id}
+
+
+def media_library_has_uncovered_recovery_candidate(items: object, deleted_media: dict[str, int] | None = None) -> bool:
+    if not isinstance(items, list) or not items:
+        return bool(media_recovery_candidate_dirs(deleted_media))
+    saved_media_ids = media_library_saved_media_ids(items)
+    if not saved_media_ids:
+        return bool(media_recovery_candidate_dirs(deleted_media))
+    return any(media_dir.name not in saved_media_ids for media_dir in media_recovery_candidate_dirs(deleted_media))
+
+
+def media_library_recovery_candidate_count(deleted_media: dict[str, int] | None = None) -> int:
+    return len(media_recovery_candidate_dirs(deleted_media))
+
+
+def recover_media_library_items_from_disk() -> list[dict]:
     deleted_media = read_deleted_media_map()
-    skip_names = {
-        "bgm-library",
-        "capcut-fonts",
-        "capcut-test-audio",
-        "_capcut_assets",
-        "__capcut_assets__",
-        "__dedupe_aux__",
-    }
-    skip_prefixes = ("ab-dedup-", "flow-fission-")
     recovered: list[dict] = []
-    for media_dir in sorted(MEDIA_ROOT.iterdir(), key=lambda item: item.stat().st_mtime if item.exists() else 0, reverse=True):
-        if not media_dir.is_dir():
-            continue
-        if media_dir.name in deleted_media:
-            continue
-        if media_dir.name in skip_names or media_dir.name.startswith(skip_prefixes) or media_dir.name.startswith("_"):
-            continue
+    for media_dir in media_recovery_candidate_dirs(deleted_media):
         video_path = find_original_media_video(media_dir) or find_primary_media_video(media_dir)
         if not video_path:
             continue
@@ -1198,6 +1266,7 @@ def write_draft_templates(items: list[dict]) -> None:
         tmp_file = DRAFT_TEMPLATES_FILE.with_suffix(".tmp")
         tmp_file.write_text(json.dumps(items, ensure_ascii=False, indent=2), encoding="utf-8")
         tmp_file.replace(DRAFT_TEMPLATES_FILE)
+    clear_client_state_health_cache()
 
 
 def sanitize_draft_template(item: dict) -> dict:
@@ -1461,6 +1530,7 @@ def write_client_state(state: dict) -> None:
     if should_snapshot_client_state_change(current, state):
         snapshot_client_state(current, "before-write")
     atomic_write_json(CLIENT_STATE_FILE, state)
+    clear_client_state_health_cache()
 
 
 def read_latest_client_state_backup() -> dict:
@@ -1918,6 +1988,7 @@ def write_batch_draft_projects(items: list[dict]) -> None:
         tmp_file = BATCH_DRAFT_PROJECTS_FILE.with_suffix(".tmp")
         tmp_file.write_text(json.dumps(normalize_batch_draft_projects(items), ensure_ascii=False, indent=2), encoding="utf-8")
         tmp_file.replace(BATCH_DRAFT_PROJECTS_FILE)
+    clear_client_state_health_cache()
 
 
 def merge_client_state_value(key: str, incoming: object, current: object, replace: bool = False) -> object:
@@ -2405,15 +2476,43 @@ def summarize_client_state(state: dict) -> list[dict]:
     return rows
 
 
+CLIENT_STATE_HEALTH_CACHE_TTL_SECONDS = 2.0
+CLIENT_STATE_HEALTH_CACHE_LOCK = threading.RLock()
+CLIENT_STATE_HEALTH_CACHE: dict[str, object] = {"expires_at": 0.0, "payload": None}
+
+
+def clear_client_state_health_cache() -> None:
+    with CLIENT_STATE_HEALTH_CACHE_LOCK:
+        CLIENT_STATE_HEALTH_CACHE["payload"] = None
+        CLIENT_STATE_HEALTH_CACHE["expires_at"] = 0.0
+
+
+def get_client_state_health(*, force: bool = False) -> dict:
+    now = time.time()
+    with CLIENT_STATE_HEALTH_CACHE_LOCK:
+        cached = CLIENT_STATE_HEALTH_CACHE.get("payload")
+        if not force and isinstance(cached, dict) and now < float(CLIENT_STATE_HEALTH_CACHE.get("expires_at") or 0):
+            return copy.deepcopy(cached)
+        payload = build_client_state_health()
+        CLIENT_STATE_HEALTH_CACHE["payload"] = copy.deepcopy(payload)
+        CLIENT_STATE_HEALTH_CACHE["expires_at"] = time.time() + CLIENT_STATE_HEALTH_CACHE_TTL_SECONDS
+        return payload
+
+
 def build_client_state_health() -> dict:
     raw_state = read_client_state()
+    deleted_media = read_deleted_media_map(raw_state)
     raw_media_items = read_media_library_items()
-    raw_disk_media_items = recover_media_library_items_from_disk()
+    if media_library_has_uncovered_recovery_candidate(raw_media_items, deleted_media):
+        raw_disk_media_items = recover_media_library_items_from_disk()
+        raw_disk_media_count = client_state_value_count(raw_disk_media_items)
+    else:
+        raw_disk_media_items = []
+        raw_disk_media_count = media_library_recovery_candidate_count(deleted_media)
     raw_draft_templates = read_draft_templates()
     raw_state_ingest_count = client_state_value_count(raw_state.get("meiao-ingest-items"))
     raw_state_template_count = client_state_value_count(raw_state.get("meiao-draft-templates"))
     raw_media_count = client_state_value_count(raw_media_items)
-    raw_disk_media_count = client_state_value_count(raw_disk_media_items)
     raw_template_count = client_state_value_count(raw_draft_templates)
     raw_unified_task_summary = summarize_unified_client_tasks(raw_state.get("meiao-unified-tasks"))
     state = build_recovered_client_state()
@@ -2883,14 +2982,157 @@ def natural_sort_key(value: str) -> list[object]:
     return [int(part) if part.isdigit() else part.lower() for part in re.split(r"(\d+)", value)]
 
 
-def recover_scene_split_records_from_vectors(valid_media_ids: set[str] | None = None) -> tuple[dict, dict]:
-    if not VECTOR_STORE_FILE.exists():
-        return {}, {}
+def scene_split_recovery_index_file() -> Path:
+    return VECTOR_STORE_FILE.with_name("scene-split-recovery-index.json")
+
+
+def vector_status_index_file() -> Path:
+    return VECTOR_STORE_FILE.with_name("vector-status-index.json")
+
+
+def vector_store_source_signature() -> dict | None:
     try:
-        store = json.loads(VECTOR_STORE_FILE.read_text(encoding="utf-8"))
-        items = store.get("items") if isinstance(store, dict) else {}
-    except Exception:
+        stat = VECTOR_STORE_FILE.stat()
+        return {"path": str(VECTOR_STORE_FILE), "mtimeNs": int(stat.st_mtime_ns), "size": int(stat.st_size)}
+    except OSError:
+        return None
+
+
+def filter_scene_split_recovery(records: dict, vector_status: dict, valid_media_ids: set[str] | None = None) -> tuple[dict, dict]:
+    if valid_media_ids is None:
+        return records, vector_status
+    filtered_records = {
+        key: record
+        for key, record in records.items()
+        if isinstance(record, dict) and str(record.get("mediaId") or "").strip() in valid_media_ids
+    }
+    return filtered_records, {key: value for key, value in vector_status.items() if key in filtered_records}
+
+
+def read_scene_split_recovery_index(valid_media_ids: set[str] | None = None) -> tuple[dict, dict] | None:
+    signature = vector_store_source_signature()
+    if signature is None:
         return {}, {}
+    index_path = scene_split_recovery_index_file()
+    try:
+        payload = json.loads(index_path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    if not isinstance(payload, dict) or payload.get("source") != signature:
+        return None
+    records = payload.get("records") if isinstance(payload.get("records"), dict) else {}
+    vector_status = payload.get("vectorStatus") if isinstance(payload.get("vectorStatus"), dict) else {}
+    return filter_scene_split_recovery(records, vector_status, valid_media_ids)
+
+
+def write_scene_split_recovery_index(records: dict, vector_status: dict, signature: dict | None = None) -> None:
+    signature = signature or vector_store_source_signature()
+    if signature is None:
+        return
+    try:
+        atomic_write_json(scene_split_recovery_index_file(), {"source": signature, "records": records, "vectorStatus": vector_status})
+    except Exception as exc:
+        append_debug_log("client_state.recover.scene_split_index_write_failed", {"error": str(exc)})
+
+
+def vector_status_item_view(key: str, item: dict) -> dict:
+    return {
+        "key": key,
+        "projectId": item.get("projectId"),
+        "mediaId": item.get("mediaId"),
+        "scriptId": item.get("scriptId"),
+        "segmentIndex": item.get("segmentIndex"),
+        "segmentId": item.get("segmentId"),
+        "splitRunId": item.get("splitRunId"),
+        "filename": item.get("filename"),
+        "url": item.get("url"),
+        "updatedAt": item.get("updatedAt"),
+        "cost": normalize_vector_cost(item),
+        "inputModalities": item.get("inputModalities"),
+        "embeddingProfile": item.get("embeddingProfile"),
+        "dimensions": item.get("dimensions"),
+        "videoFps": item.get("videoFps"),
+        "inputStrategy": item.get("inputStrategy"),
+        "visualTags": item.get("visualTags"),
+        "voiceTags": item.get("voiceTags"),
+        "productTags": item.get("productTags"),
+        "actionTags": item.get("actionTags"),
+        "sceneTags": item.get("sceneTags"),
+        "freeTags": item.get("freeTags"),
+        "categoryTags": item.get("categoryTags"),
+        "styleTags": item.get("styleTags"),
+        "colorTags": item.get("colorTags"),
+        "specTags": item.get("specTags"),
+        "materialTags": item.get("materialTags"),
+        "sellingPointTags": item.get("sellingPointTags"),
+        "usageSceneTags": item.get("usageSceneTags"),
+        "voiceFitTags": item.get("voiceFitTags"),
+        "aliasTags": item.get("aliasTags"),
+        "tagAnalysisStatus": item.get("tagAnalysisStatus"),
+        "tagAnalysisError": item.get("tagAnalysisError"),
+        "tagAnalysisModelId": item.get("tagAnalysisModelId"),
+        "tagFallbackApplied": item.get("tagFallbackApplied"),
+    }
+
+
+def build_vector_status_payload_from_store(store: dict) -> dict:
+    store, _changed = sync_vector_store_profile(store)
+    items = store.get("items", {})
+    if not isinstance(items, dict):
+        items = {}
+    rows = []
+    for key, item in items.items():
+        if not isinstance(item, dict):
+            continue
+        ensure_product_structure_tags(item)
+        rows.append(vector_status_item_view(key, item))
+    return {
+        "provider": "doubao",
+        "model": store.get("model") or get_ark_config()["model"],
+        "profile": store.get("profile") or VECTOR_PROFILE_ID,
+        "count": len(items),
+        "items": rows,
+    }
+
+
+def read_vector_status_index() -> dict | None:
+    signature = vector_store_source_signature()
+    if signature is None:
+        return None
+    try:
+        payload = json.loads(vector_status_index_file().read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    if not isinstance(payload, dict) or payload.get("source") != signature:
+        return None
+    status = payload.get("status")
+    if not isinstance(status, dict) or not isinstance(status.get("items"), list):
+        return None
+    return status
+
+
+def write_vector_status_index(status: dict, signature: dict | None = None) -> None:
+    signature = signature or vector_store_source_signature()
+    if signature is None:
+        return
+    try:
+        atomic_write_json(vector_status_index_file(), {"source": signature, "status": status})
+    except Exception as exc:
+        append_debug_log("vectors.status.index_write_failed", {"error": str(exc)})
+
+
+def get_vector_status_payload() -> dict:
+    indexed = read_vector_status_index()
+    if indexed is not None:
+        return indexed
+    signature = vector_store_source_signature()
+    store = read_vector_store()
+    status = build_vector_status_payload_from_store(store)
+    write_vector_status_index(status, signature)
+    return status
+
+
+def build_scene_split_recovery_from_vector_items(items: dict) -> tuple[dict, dict]:
     if not isinstance(items, dict):
         return {}, {}
     grouped: dict[str, list[dict]] = {}
@@ -2901,8 +3143,6 @@ def recover_scene_split_records_from_vectors(valid_media_ids: set[str] | None = 
         media_id = str(raw.get("mediaId") or "").strip()
         segment_index = raw.get("segmentIndex")
         if not script_id or not media_id or not isinstance(segment_index, int):
-            continue
-        if valid_media_ids is not None and media_id not in valid_media_ids:
             continue
         grouped.setdefault(f"{script_id}|{media_id}", []).append(raw)
 
@@ -2921,7 +3161,7 @@ def recover_scene_split_records_from_vectors(valid_media_ids: set[str] | None = 
             end = start + duration
             cursor = end
             split_run_id = split_run_id or str(item.get("splitRunId") or "")
-            updated_at = max(updated_at, int((parse_iso_time(item.get("updatedAt")) or datetime.utcnow()).timestamp() * 1000))
+            updated_at = max(updated_at, int((parse_iso_time(item.get("updatedAt")) or datetime.now(timezone.utc).replace(tzinfo=None)).timestamp() * 1000))
             segments.append({
                 "index": int(item.get("segmentIndex") or len(segments) + 1),
                 "segmentId": item.get("segmentId"),
@@ -2947,6 +3187,18 @@ def recover_scene_split_records_from_vectors(valid_media_ids: set[str] | None = 
         }
         vector_status[script_id] = "done"
     return records, vector_status
+
+
+def recover_scene_split_records_from_vectors(valid_media_ids: set[str] | None = None) -> tuple[dict, dict]:
+    indexed = read_scene_split_recovery_index(valid_media_ids)
+    if indexed is not None:
+        return indexed
+    signature = vector_store_source_signature()
+    store = read_vector_store()
+    items = store.get("items") if isinstance(store, dict) else {}
+    records, vector_status = build_scene_split_recovery_from_vector_items(items)
+    write_scene_split_recovery_index(records, vector_status, signature)
+    return filter_scene_split_recovery(records, vector_status, valid_media_ids)
 
 
 def recover_scene_split_records_from_media_files(ingest_items: list[dict], existing_records: dict) -> dict:
@@ -3282,9 +3534,14 @@ def build_recovered_client_state() -> dict:
     state_ingest_items = state.get("meiao-ingest-items") if isinstance(state.get("meiao-ingest-items"), list) else []
     state_ingest_items = filter_ingest_items_for_deleted_media(state_ingest_items, deleted_media)
     saved_ingest_items = filter_ingest_items_for_deleted_media(read_media_library_items(), deleted_media)
-    disk_ingest_items = filter_ingest_items_for_deleted_media(recover_media_library_items_from_disk(), deleted_media)
+    covered_ingest_items = merge_media_library_items(state_ingest_items, saved_ingest_items)
+    disk_ingest_items = (
+        filter_ingest_items_for_deleted_media(recover_media_library_items_from_disk(), deleted_media)
+        if media_library_has_uncovered_recovery_candidate(covered_ingest_items, deleted_media)
+        else []
+    )
     ingest_items = merge_media_library_items(
-        merge_media_library_items(state_ingest_items, saved_ingest_items),
+        covered_ingest_items,
         disk_ingest_items,
     )
     ingest_items = filter_ingest_items_for_active_projects(ingest_items, active_project_ids)
@@ -3587,7 +3844,7 @@ def normalize_bgm_item(item: dict) -> dict | None:
 
 
 def utc_now_iso() -> str:
-    return datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
+    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
 def parse_iso_time(value: object | None) -> datetime | None:
@@ -3694,7 +3951,7 @@ def normalize_rebind_account(account: str) -> str:
 
 
 def get_current_month_key() -> str:
-    return datetime.utcnow().strftime("%Y-%m")
+    return datetime.now(timezone.utc).strftime("%Y-%m")
 
 
 def get_rebind_usage(account: str) -> dict:
@@ -3892,14 +4149,14 @@ def normalize_license_payload(payload: dict, current: dict | None = None) -> dic
 def build_license_status_response(device: dict, state: dict) -> dict:
     last_verified = parse_iso_time(state.get("lastVerifiedAt"))
     expires_at = parse_iso_time(state.get("expiresAt"))
-    now_dt = datetime.utcnow()
+    now_dt = datetime.now(timezone.utc).replace(tzinfo=None)
     offline_grace_hours = int(state.get("offlineGraceHours") or 72)
     offline_until = None
     offline_ok = False
     if last_verified:
         offline_until_dt = last_verified.timestamp() + offline_grace_hours * 3600
         offline_ok = time.time() <= offline_until_dt
-        offline_until = datetime.utcfromtimestamp(offline_until_dt).replace(microsecond=0).isoformat() + "Z"
+        offline_until = datetime.fromtimestamp(offline_until_dt, timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
     not_expired = True if not expires_at else now_dt <= expires_at
     active = bool(state.get("active") and state.get("accessToken") and not_expired and offline_ok)
     return {
@@ -3967,7 +4224,7 @@ def online_verify_within_throttle(state: dict) -> bool:
     last_verified = parse_iso_time(state.get("lastVerifiedAt"))
     if not last_verified:
         return False
-    age_seconds = (datetime.utcnow() - last_verified).total_seconds()
+    age_seconds = (datetime.now(timezone.utc).replace(tzinfo=None) - last_verified).total_seconds()
     return 0 <= age_seconds < LICENSE_VERIFY_THROTTLE_SECONDS
 
 
@@ -4356,13 +4613,23 @@ def file_count_and_size(root: Path) -> dict:
     total = 0
     count = 0
     if root.exists():
-        for path in root.rglob("*"):
+        pending = [os.fspath(root)]
+        while pending:
+            current = pending.pop()
             try:
-                if path.is_file():
-                    count += 1
-                    total += path.stat().st_size
+                entries = os.scandir(current)
             except Exception:
                 continue
+            with entries:
+                for entry in entries:
+                    try:
+                        if entry.is_dir(follow_symlinks=False):
+                            pending.append(entry.path)
+                        elif entry.is_file():
+                            total += entry.stat().st_size
+                            count += 1
+                    except Exception:
+                        continue
     return {"bytes": total, "files": count}
 
 
@@ -4388,13 +4655,33 @@ def get_runtime_info() -> dict:
     }
 
 
+STORAGE_OVERVIEW_CACHE_TTL_SECONDS = 60.0
+STORAGE_OVERVIEW_CACHE_LOCK = threading.RLock()
+STORAGE_OVERVIEW_CACHE: dict[str, object] = {"expires_at": 0.0, "payload": None}
+
+
+def clear_storage_overview_cache() -> None:
+    with STORAGE_OVERVIEW_CACHE_LOCK:
+        STORAGE_OVERVIEW_CACHE.update({"expires_at": 0.0, "payload": None})
+
+
 def get_storage_overview() -> dict:
+    now = time.monotonic()
+    with STORAGE_OVERVIEW_CACHE_LOCK:
+        cached = STORAGE_OVERVIEW_CACHE.get("payload")
+        if cached is not None and float(STORAGE_OVERVIEW_CACHE.get("expires_at") or 0.0) > now:
+            return copy.deepcopy(cached)
+        payload = _build_storage_overview_uncached()
+        STORAGE_OVERVIEW_CACHE.update({"expires_at": time.monotonic() + STORAGE_OVERVIEW_CACHE_TTL_SECONDS, "payload": copy.deepcopy(payload)})
+        return payload
+
+
+def _build_storage_overview_uncached() -> dict:
     return {
         "media": file_count_and_size(MEDIA_ROOT),
         "logs": file_count_and_size(LOG_ROOT),
         "vectors": file_count_and_size(VECTOR_STORE_FILE.parent),
         "authProfiles": file_count_and_size(AUTH_PROFILE_ROOT),
-        "flowChrome": file_count_and_size(FLOW_AUTOMATION_PROFILE_ROOT),
         "config": {"bytes": CONFIG_FILE.stat().st_size if CONFIG_FILE.exists() else 0, "files": 1 if CONFIG_FILE.exists() else 0},
     }
 
@@ -4470,8 +4757,9 @@ def check_auxiliary_video_folder(key: str, label: str, path: Path) -> dict:
 
 
 def check_tcp_port(key: str, label: str, host: str, port: int, *, required: bool = False) -> dict:
+    timeout = 0.35 if required else 0.08
     try:
-        with socket.create_connection((host, port), timeout=0.35):
+        with socket.create_connection((host, port), timeout=timeout):
             return {"key": key, "label": label, "host": host, "port": port, "status": "ok", "message": "可连接"}
     except Exception as exc:
         return {
@@ -4710,6 +4998,31 @@ def build_environment_health() -> dict:
     }
 
 
+ENVIRONMENT_HEALTH_CACHE_TTL_SECONDS = 1.0
+_environment_health_cache_lock = threading.Lock()
+_environment_health_cache: dict | None = None
+_environment_health_cache_expires_at = 0.0
+
+
+def clear_environment_health_cache() -> None:
+    global _environment_health_cache, _environment_health_cache_expires_at
+    with _environment_health_cache_lock:
+        _environment_health_cache = None
+        _environment_health_cache_expires_at = 0.0
+
+
+def get_environment_health() -> dict:
+    global _environment_health_cache, _environment_health_cache_expires_at
+    now = time.monotonic()
+    with _environment_health_cache_lock:
+        if _environment_health_cache is not None and now < _environment_health_cache_expires_at:
+            return _environment_health_cache
+        payload = build_environment_health()
+        _environment_health_cache = payload
+        _environment_health_cache_expires_at = time.monotonic() + ENVIRONMENT_HEALTH_CACHE_TTL_SECONDS
+        return payload
+
+
 def repair_environment_dependency(payload: dict | None = None) -> dict:
     key = str((payload or {}).get("key") or "").strip().lower()
     repair_scripts = {
@@ -4739,19 +5052,23 @@ def repair_environment_dependency(payload: dict | None = None) -> dict:
     if key == "ocr":
         command.append("-UsePipFallback")
 
-    completed = subprocess.run(
-        command,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        timeout=900 if key == "ocr" else 360,
-    )
-    if completed.returncode != 0:
-        detail = (completed.stderr or completed.stdout or "").strip()
-        raise RuntimeError(f"{label} 自动配置失败：{detail or completed.returncode}")
+    clear_environment_health_cache()
+    try:
+        completed = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=900 if key == "ocr" else 360,
+        )
+        if completed.returncode != 0:
+            detail = (completed.stderr or completed.stdout or "").strip()
+            raise RuntimeError(f"{label} 自动配置失败：{detail or completed.returncode}")
 
-    append_debug_log("system.environment.repair", {"key": key, "stdout": (completed.stdout or "").strip()[-1000:]})
+        append_debug_log("system.environment.repair", {"key": key, "stdout": (completed.stdout or "").strip()[-1000:]})
+    finally:
+        clear_environment_health_cache()
     return {
         "repairedKey": key,
         "message": f"{label} 已自动配置完成。",
@@ -4799,6 +5116,7 @@ def save_global_settings_bundle(payload: dict) -> dict:
             current_section = config.get(key) if isinstance(config.get(key), dict) else {}
             config[key] = deep_merge_dict(current_section, payload[key])
     save_local_config(config)
+    clear_storage_overview_cache()
     append_debug_log("api.global_settings.save", {"sections": list(payload.keys())})
     return get_global_settings_bundle()
 
@@ -4824,6 +5142,7 @@ def create_settings_backup() -> dict:
     settings.setdefault("backup", {}).setdefault("records", []).append(record)
     config["global_settings"] = settings
     save_local_config(config)
+    clear_storage_overview_cache()
     append_debug_log("api.global_settings.backup", record)
     return {"record": record, "snapshot": snapshot}
 
@@ -4841,6 +5160,7 @@ def restore_settings_backup(snapshot: dict) -> dict:
         if isinstance(config.get(key), dict):
             current[key] = config[key]
     save_local_config(current)
+    clear_storage_overview_cache()
     append_debug_log("api.global_settings.restore", {"createdAt": snapshot.get("createdAt")})
     return get_global_settings_bundle()
 
@@ -6996,16 +7316,44 @@ def clash_request(controller: str, path: str, method: str = "GET", payload: dict
         return json.loads(raw) if raw else {}
 
 
+def is_local_tcp_port_open(host: str, port: int, timeout: float = 0.08) -> bool:
+    try:
+        with socket.create_connection((host, port), timeout=timeout):
+            return True
+    except Exception:
+        return False
+
+
+def should_skip_local_clash_controller_probe(controller: str) -> bool:
+    try:
+        parsed = urlparse(controller)
+        host = parsed.hostname or ""
+        port = int(parsed.port or (443 if parsed.scheme == "https" else 80))
+    except Exception:
+        return False
+    if host not in {"127.0.0.1", "localhost", "::1"}:
+        return False
+    return not is_local_tcp_port_open(host, port)
+
+
 def detect_clash_controller() -> dict | None:
+    global LAST_CLASH_CONTROLLER
     config = get_clash_config()
-    for controller in config["controllers"]:
+    controllers = list(config["controllers"])
+    if LAST_CLASH_CONTROLLER and LAST_CLASH_CONTROLLER in controllers:
+        controllers = [LAST_CLASH_CONTROLLER] + [controller for controller in controllers if controller != LAST_CLASH_CONTROLLER]
+    for controller in controllers:
+        if should_skip_local_clash_controller_probe(controller):
+            continue
         try:
             version = clash_request(controller, "/version", secret=config["secret"], timeout=1.5)
             proxies = clash_request(controller, "/proxies", secret=config["secret"], timeout=2.5)
             if isinstance(proxies.get("proxies"), dict):
+                LAST_CLASH_CONTROLLER = controller
                 return {"controller": controller, "secret": config["secret"], "version": version, "proxies": proxies["proxies"], "config": config}
         except Exception:
             continue
+    LAST_CLASH_CONTROLLER = None
     return None
 
 
@@ -7353,9 +7701,38 @@ def flow_autostart_enabled() -> bool:
     return bool(target and target.exists())
 
 
+def parse_wmic_chrome_processes(output: str) -> list[dict]:
+    rows = [line for line in output.splitlines() if line.strip()]
+    if not rows:
+        return []
+    processes = []
+    for row in csv.DictReader(StringIO("\n".join(rows))):
+        try:
+            pid = int(row.get("ProcessId") or 0)
+        except (TypeError, ValueError):
+            pid = 0
+        if pid:
+            processes.append({"pid": pid, "name": "chrome.exe", "commandLine": str(row.get("CommandLine") or "")})
+    return processes
+
+
 def list_chrome_processes() -> list[dict]:
     if os.name != "nt":
         return []
+    try:
+        completed = subprocess.run(
+            ["wmic", "process", "where", "name='chrome.exe'", "get", "ProcessId,CommandLine", "/FORMAT:CSV"],
+            capture_output=True,
+            text=True,
+            timeout=3,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
+        if completed.returncode == 0 and completed.stdout.strip():
+            processes = parse_wmic_chrome_processes(completed.stdout)
+            if processes:
+                return processes
+    except Exception:
+        pass
     try:
         completed = subprocess.run(
             [
@@ -7421,7 +7798,24 @@ def is_flow_chrome_process(process: dict) -> bool:
     )
 
 
+def chrome_exe_from_processes(processes: list[dict]) -> Path | None:
+    for process in processes:
+        command_line = str(process.get("commandLine") or "").strip()
+        if not command_line:
+            continue
+        if command_line.startswith('"'):
+            end_quote = command_line.find('"', 1)
+            candidate = command_line[1:end_quote] if end_quote > 1 else ""
+        else:
+            match = re.match(r"(.+?chrome\.exe)(?:\s|$)", command_line, flags=re.I)
+            candidate = match.group(1) if match else ""
+        if candidate and Path(candidate).name.lower() == "chrome.exe":
+            return Path(candidate)
+    return None
+
+
 def stop_chrome_processes() -> dict:
+    clear_flow_runtime_status_cache()
     before = list_chrome_processes()
     targets = [process for process in before if is_flow_chrome_process(process)]
     if not targets:
@@ -7475,6 +7869,14 @@ def cdp_base_urls(port: int = FLOW_CHROME_PORT) -> list[str]:
     ]
 
 
+def cdp_port_open(port: int = FLOW_CHROME_PORT, timeout: float = 0.08) -> bool:
+    try:
+        with socket.create_connection(("127.0.0.1", port), timeout=timeout):
+            return True
+    except Exception:
+        return False
+
+
 def read_cdp_json(path: str, port: int = FLOW_CHROME_PORT, *, timeout: float = 3.0, method: str = "GET") -> tuple[dict | list | None, str | None]:
     last_error = None
     for base_url in cdp_base_urls(port):
@@ -7490,6 +7892,8 @@ def read_cdp_json(path: str, port: int = FLOW_CHROME_PORT, *, timeout: float = 3
 
 
 def flow_cdp_version(port: int = FLOW_CHROME_PORT) -> dict | None:
+    if not cdp_port_open(port):
+        return None
     try:
         data, base_url = read_cdp_json("/json/version", port, timeout=2)
         if isinstance(data, dict):
@@ -7608,16 +8012,52 @@ def normalize_chrome_profile(profile_directory: str | None = None) -> str:
     return profile
 
 
-def flow_runtime_status(message: str | None = None, profile_directory: str | None = None) -> dict:
-    version = flow_cdp_version()
+FLOW_RUNTIME_STATUS_CACHE_TTL_SECONDS = 1.0
+FLOW_RUNTIME_STATUS_CACHE_LOCK = threading.RLock()
+FLOW_RUNTIME_STATUS_CACHE: dict[str, object] = {"expires_at": 0.0, "key": None, "payload": None}
+
+
+def clear_flow_runtime_status_cache() -> None:
+    with FLOW_RUNTIME_STATUS_CACHE_LOCK:
+        FLOW_RUNTIME_STATUS_CACHE.update({"expires_at": 0.0, "key": None, "payload": None})
+
+
+def read_flow_runtime_probe_inputs() -> tuple[dict | None, list[dict]]:
+    results: dict[str, object] = {"version": None, "processes": []}
+    errors: list[BaseException] = []
+
+    def read_version() -> None:
+        try:
+            results["version"] = flow_cdp_version()
+        except BaseException as exc:
+            errors.append(exc)
+
+    def read_processes() -> None:
+        try:
+            results["processes"] = list_chrome_processes()
+        except BaseException as exc:
+            errors.append(exc)
+
+    threads = [threading.Thread(target=read_version), threading.Thread(target=read_processes)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    if errors:
+        raise errors[0]
+    version = results.get("version")
+    processes = results.get("processes")
+    return (version if isinstance(version, dict) else None, processes if isinstance(processes, list) else [])
+
+
+def _read_flow_runtime_status(message: str | None, profile: str) -> dict:
+    version, chrome_processes = read_flow_runtime_probe_inputs()
     cdp_ready = bool(version)
-    chrome_processes = list_chrome_processes()
     flow_chrome_processes = [process for process in chrome_processes if is_flow_chrome_process(process)]
     chrome_running = len(chrome_processes) > 0
     needs_restart = False
-    profile = normalize_chrome_profile(profile_directory)
-    chrome_exe = get_chrome_exe()
-    return {
+    chrome_exe = chrome_exe_from_processes(chrome_processes) or get_chrome_exe()
+    payload = {
         "ok": True,
         "cdpReady": cdp_ready,
         "port": FLOW_CHROME_PORT,
@@ -7638,6 +8078,23 @@ def flow_runtime_status(message: str | None = None, profile_directory: str | Non
         "startupEnabled": flow_autostart_enabled(),
         "launcherPath": str(BASE_DIR / "launch-flow-chrome.bat"),
     }
+    return payload
+
+
+def flow_runtime_status(message: str | None = None, profile_directory: str | None = None) -> dict:
+    profile = normalize_chrome_profile(profile_directory)
+    if message is not None:
+        return _read_flow_runtime_status(message, profile)
+
+    cache_key = (profile,)
+    with FLOW_RUNTIME_STATUS_CACHE_LOCK:
+        now = time.monotonic()
+        cached = FLOW_RUNTIME_STATUS_CACHE.get("payload")
+        if cached is not None and FLOW_RUNTIME_STATUS_CACHE.get("key") == cache_key and float(FLOW_RUNTIME_STATUS_CACHE.get("expires_at") or 0.0) > now:
+            return copy.deepcopy(cached)
+        payload = _read_flow_runtime_status(None, profile)
+        FLOW_RUNTIME_STATUS_CACHE.update({"expires_at": time.monotonic() + FLOW_RUNTIME_STATUS_CACHE_TTL_SECONDS, "key": cache_key, "payload": copy.deepcopy(payload)})
+        return payload
 
 
 def start_flow_chrome(force_restart: bool = False, profile_directory: str | None = None) -> dict:
@@ -7677,10 +8134,12 @@ def start_flow_chrome(force_restart: bool = False, profile_directory: str | None
             | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
         ) if os.name == "nt" else 0,
     )
+    clear_flow_runtime_status_cache()
 
     for _ in range(30):
         time.sleep(0.35)
         if flow_cdp_version():
+            clear_flow_runtime_status_cache()
             return flow_runtime_status(f"已启动 Flow 专用 Chrome，并绑定 {profile}。", profile)
 
     raise IngestError("Chrome 已启动但 CDP 端口未开放。建议点击“关闭并重启 Flow 浏览器”重新拉起。", "CDP_NOT_READY", "RESTART_CHROME")
@@ -11300,9 +11759,7 @@ def flow_prepare_reference_files(reference_images: list | None, job_id: str | No
                         name = f"{Path(name).stem}{local_path.suffix}"
 
             digest = hashlib.sha1(data).hexdigest()[:10]
-            kind = imghdr.what(None, data)
-            suffix_map = {"jpeg": ".jpg", "png": ".png", "webp": ".webp", "gif": ".gif"}
-            short_suffix = suffix_map.get(str(kind or "").lower()) or Path(name).suffix.lower() or ".jpg"
+            short_suffix = detect_image_suffix(data) or Path(name).suffix.lower() or ".jpg"
             try:
                 from PIL import Image, ImageOps
                 source = Image.open(BytesIO(data))
@@ -23326,6 +23783,11 @@ def write_vector_store(store: dict) -> None:
             _VECTOR_STORE_CACHE["mtime"] = stat.st_mtime_ns
             _VECTOR_STORE_CACHE["size"] = stat.st_size
             _VECTOR_STORE_CACHE["data"] = store
+        items = store.get("items") if isinstance(store, dict) else {}
+        records, vector_status = build_scene_split_recovery_from_vector_items(items if isinstance(items, dict) else {})
+        signature = {"path": str(VECTOR_STORE_FILE), "mtimeNs": int(stat.st_mtime_ns), "size": int(stat.st_size)}
+        write_scene_split_recovery_index(records, vector_status, signature)
+        write_vector_status_index(build_vector_status_payload_from_store(store), signature)
     except OSError:
         with _VECTOR_STORE_CACHE_LOCK:
             _VECTOR_STORE_CACHE["data"] = None
@@ -23339,7 +23801,7 @@ def merge_vector_store_items(updated_items: dict[str, dict], *, model: str | Non
         store["model"] = model or get_ark_config()["model"]
         items = store.setdefault("items", {})
         items.update(updated_items)
-        atomic_write_json(VECTOR_STORE_FILE, store)
+        write_vector_store(store)
         return len(items)
 
 
@@ -28750,7 +29212,7 @@ class Handler(BaseHTTPRequestHandler):
             self.handle_select_capcut_executable()
             return
         if parsed.path == "/api/system/environment":
-            self.write_json(200, build_environment_health())
+            self.write_json(200, get_environment_health())
             return
         if parsed.path == "/api/system/select-video-folder":
             self.handle_select_video_folder()
@@ -29270,7 +29732,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def handle_client_state_health(self) -> None:
         try:
-            self.write_json(200, build_client_state_health())
+            self.write_json(200, get_client_state_health())
         except Exception as exc:
             append_debug_log("api.client_state.health.error", {"errorType": type(exc).__name__, "error": str(exc), "traceback": traceback.format_exc()})
             self.write_json(500, {"error": "检查本地数据健康失败。"})
@@ -29321,7 +29783,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def handle_bgm_library_upload(self) -> None:
         try:
-            form = cgi.FieldStorage(
+            form = load_cgi_module().FieldStorage(
                 fp=self.rfile,
                 headers=self.headers,
                 environ={"REQUEST_METHOD": "POST", "CONTENT_TYPE": self.headers.get("Content-Type", "")},
@@ -29704,7 +30166,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def handle_ingest_local(self) -> None:
         try:
-            form = cgi.FieldStorage(
+            form = load_cgi_module().FieldStorage(
                 fp=self.rfile,
                 headers=self.headers,
                 environ={
@@ -29806,7 +30268,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def handle_script_template_import(self) -> None:
         try:
-            form = cgi.FieldStorage(
+            form = load_cgi_module().FieldStorage(
                 fp=self.rfile,
                 headers=self.headers,
                 environ={

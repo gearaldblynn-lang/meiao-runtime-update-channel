@@ -1,6 +1,6 @@
 {
-    "version":  "20260627-copy-clean-state-convergence",
-    "createdAt":  "2026-06-27T09:23:21.0568902Z",
+    "version":  "20260629-g7e",
+    "createdAt":  "2026-06-29T01:53:32.3380410Z",
     "channel":  "git-update",
     "payloadMode":  "partial",
     "repository":  "https://github.com/gearaldblynn-lang/meiao-runtime-update-channel.git",
@@ -61,8 +61,8 @@
                              "integrations/capcut_mate/upstream/capcut-mate-main/db",
                              "integrations/capcut_mate/upstream/capcut-mate-main/temp"
                          ],
-    "fileCount":  261,
-    "payloadHash":  "d5a3909d7a9e918f28157ef45046a8661d3dfd389d2657b5ba555864c0c164e2",
+    "fileCount":  262,
+    "payloadHash":  "71641cbe1761d04a5c26cfe53c6b954047e4ef19a116f1ce5f2e87297209ff48",
     "files":  [
                   {
                       "path":  "backup-runtime-data.ps1",
@@ -80,29 +80,29 @@
                       "size":  150
                   },
                   {
-                      "path":  "frontend/assets/AIOutput-DSFEWG_H.js",
-                      "sha256":  "b750529883b6c1eca562ca0bada42bea964c9facde197418e22b62155f1d7ba0",
+                      "path":  "frontend/assets/AIOutput-CdZ9uRBf.js",
+                      "sha256":  "ea5b6768fa7d66e67c9ddcd0b987990f8bb48b8d372b7f47343bc350fe469621",
                       "size":  49936
                   },
                   {
-                      "path":  "frontend/assets/CopyClean-CmjniYkd.js",
-                      "sha256":  "17770897e9c5bfbe7ee08cb09036647d72306137b0efd73fb516ddad5edc5d52",
-                      "size":  48472
+                      "path":  "frontend/assets/CopyClean-C7WkvMRW.js",
+                      "sha256":  "0c4148743d0b5138a87767ab30fa0bbf0f85bc6ac41a3aa7bd8c5f92e1070579",
+                      "size":  48714
                   },
                   {
-                      "path":  "frontend/assets/draftTemplates-CUIRuNwD.js",
-                      "sha256":  "dd7b303a537ad78a9ded89d798709a4469f0eaa08433d1dbf68db15a399d28f3",
-                      "size":  17278
+                      "path":  "frontend/assets/draftTemplates-C3GRbu-J.js",
+                      "sha256":  "02df3d8d0673ba6e835593008c1ec046f0dbabecc5f873a30a866fa1d9199452",
+                      "size":  17594
                   },
                   {
-                      "path":  "frontend/assets/DraftTemplates-Dkn2UmKm.js",
-                      "sha256":  "7ededbfe264f1c44c879217365ae991215dc08887847b16d1503fd811667d564",
+                      "path":  "frontend/assets/DraftTemplates-DrdIDcTo.js",
+                      "sha256":  "1ffe013d0a64f528dd8ded8e9be32951d837a05d11d1afb195bb90703f224e46",
                       "size":  143962
                   },
                   {
-                      "path":  "frontend/assets/Fission-CYIA2yln.js",
-                      "sha256":  "d2a03ba490dfe39f8762495d0dbfbf62adafcb3db3ed25f621e384917fc63b83",
-                      "size":  173741
+                      "path":  "frontend/assets/Fission-Dg6PqSBV.js",
+                      "sha256":  "7403e5837f57272d69050da301abcd5278e860061dae440cc049db4e87a7eea8",
+                      "size":  173744
                   },
                   {
                       "path":  "frontend/assets/index-De5R0rjT.css",
@@ -110,14 +110,14 @@
                       "size":  109185
                   },
                   {
-                      "path":  "frontend/assets/index-DmmZekls.js",
-                      "sha256":  "de2c7801f9f5022b03ab950c8ba1ef87f00a3c3e062f79ca1135441c1e94216b",
-                      "size":  479616
+                      "path":  "frontend/assets/index-Dl4xFj6e.js",
+                      "sha256":  "da06123d60041fe0bded3ffffb3d5e2118e28ac0cc04bae43a4cfe2ba97b1252",
+                      "size":  482153
                   },
                   {
-                      "path":  "frontend/assets/OutputTasks-HlqQDCEt.js",
-                      "sha256":  "8ffb747800a840ced66cb24228e10b8c70c44435c218a00cd064e7998311bf77",
-                      "size":  172472
+                      "path":  "frontend/assets/OutputTasks-By3Qx9Bx.js",
+                      "sha256":  "8d158c57ecbcf25ebee425ea1559845a0696aa762d93cdab87f17c22fe1872ed",
+                      "size":  172193
                   },
                   {
                       "path":  "frontend/assets/vendor-icons-B6_IDGPv.js",
@@ -161,7 +161,7 @@
                   },
                   {
                       "path":  "frontend/index.html",
-                      "sha256":  "56f11bc7be3f444edda6c355498d37931ee0f882005001910d96a40f0dcfb27a",
+                      "sha256":  "0524e4e7d8cc8a3b9a2a7989cb168440b84c8dd34e1530e10e22dc55c30f175d",
                       "size":  560
                   },
                   {
@@ -1096,13 +1096,13 @@
                   },
                   {
                       "path":  "meiao_runtime/analysis_models.py",
-                      "sha256":  "dd326b914771c760e8bd348616e693388b8430bbbf1070cd2895bd1b89503618",
-                      "size":  15644
+                      "sha256":  "b9504ae021a5479a6dd1469dc0eeabf8ff40114277db82640d3187b02a9c4c95",
+                      "size":  15812
                   },
                   {
                       "path":  "meiao_runtime/app.py",
-                      "sha256":  "a725b84d5b3dd8995386ac2813bd0af046245c009d17b3aca299e3ea009abc6a",
-                      "size":  60365
+                      "sha256":  "07ed899b52c42a393f429f4992a6cb1a0b90cd0fd124f2976e45fb97db73f119",
+                      "size":  65867
                   },
                   {
                       "path":  "meiao_runtime/capcut_audio_cache_runtime.py",
@@ -1121,8 +1121,8 @@
                   },
                   {
                       "path":  "meiao_runtime/capcut_mate.py",
-                      "sha256":  "94fa7766df088531f2fffab6bef0704c8625e3fa6f5109450ec044fbbf996f3d",
-                      "size":  16199
+                      "sha256":  "a0006a844d07c927d8e78ea57007a5aa5bff4c7e46c194ee32afb3320f192a01",
+                      "size":  33506
                   },
                   {
                       "path":  "meiao_runtime/capcut_task_adapter_runtime.py",
@@ -1201,13 +1201,13 @@
                   },
                   {
                       "path":  "meiao_runtime/flow_runtime.py",
-                      "sha256":  "34a62d58956cda6771989d7e0e7853f9818587dda5e738354f7dab61a8a7ed22",
-                      "size":  2596
+                      "sha256":  "15789a9b14f6a04ecc55c9f7d943ca87479047af07f510fdea72686e9ead3063",
+                      "size":  8288
                   },
                   {
                       "path":  "meiao_runtime/flow_status_runtime.py",
-                      "sha256":  "e98dd70ce4df0a180d0d7154c4307deaf5887b6e7d209b3e50a456f81934bc2b",
-                      "size":  3266
+                      "sha256":  "9f55485405f922e9ec53166971c6d6186894f5c1322794dc3a8d12d0588f7468",
+                      "size":  3737
                   },
                   {
                       "path":  "meiao_runtime/flow_task_adapter_runtime.py",
@@ -1218,6 +1218,11 @@
                       "path":  "meiao_runtime/global_settings.py",
                       "sha256":  "988674b6f6a6d76e652d081af68f223bab1fdc8777a7cb85a85e4b1fb74013f3",
                       "size":  3393
+                  },
+                  {
+                      "path":  "meiao_runtime/go_runtime_diagnostic.py",
+                      "sha256":  "4e90a92d6fd1fa26181a9c58f1362d1c092686d8294254b7c2f4f8120e8bea09",
+                      "size":  2968
                   },
                   {
                       "path":  "meiao_runtime/license_admin_runtime.py",
@@ -1236,8 +1241,8 @@
                   },
                   {
                       "path":  "meiao_runtime/m1_routes.py",
-                      "sha256":  "967227dc0c1f9f2392d1c26408b31827da2a235a3e49dca4f8705eabe6d4c239",
-                      "size":  27124
+                      "sha256":  "9b6e71909e87f82f626ec248e7b598435359e58c2b9fdbb6c83a69d46465057a",
+                      "size":  27138
                   },
                   {
                       "path":  "meiao_runtime/media_ingest_runtime.py",
@@ -1266,8 +1271,8 @@
                   },
                   {
                       "path":  "meiao_runtime/state_store.py",
-                      "sha256":  "f5d2e928b0b2001683ff3ee5f85aceeb16d6fec174ed4e38ff044ed3182aed00",
-                      "size":  7235
+                      "sha256":  "3dd0c65c90e5fba5e4dd94f55840f804f392608498e65060aff2cb92023968ca",
+                      "size":  7588
                   },
                   {
                       "path":  "meiao_runtime/task_runtime.py",
@@ -1291,8 +1296,8 @@
                   },
                   {
                       "path":  "meiao-runtime.exe",
-                      "sha256":  "3e7bffa6a3c190e4f00e35ca861e7936d916a46efc2220231cbd34d843bc85b5",
-                      "size":  9236992
+                      "sha256":  "a51484838ee97bfb8ffacb19a2892d43f909201db5e95bdb3ed0fbaa45b858a1",
+                      "size":  9253888
                   },
                   {
                       "path":  "README.txt",
@@ -1306,8 +1311,8 @@
                   },
                   {
                       "path":  "server.py",
-                      "sha256":  "7e810d68ecb9752726e7fdb3f20831b5dbd533f688e0b98ebeeb4bedd99fb7ae",
-                      "size":  1576860
+                      "sha256":  "cd72bf5fd60d25455ebd411a6ddbdfcca2e2db4b1f33187d39dce3602e63d48a",
+                      "size":  1595028
                   },
                   {
                       "path":  "start-meiao.bat",
@@ -1316,8 +1321,8 @@
                   },
                   {
                       "path":  "start-runtime.ps1",
-                      "sha256":  "5e7d3d38ca0232b89b5cad70e7599f37acfd6d8029ad5954b29b4c950586293e",
-                      "size":  17764
+                      "sha256":  "3c061e3656a0bd29fef900ac0a56995f05f7bc47200fe679cc281d56934ce96a",
+                      "size":  17868
                   },
                   {
                       "path":  "templates/脚本拆镜模板.xlsx",

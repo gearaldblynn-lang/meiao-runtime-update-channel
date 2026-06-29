@@ -147,7 +147,7 @@ def register(app: FastAPI, legacy_globals: dict[str, Any], runtime_error_respons
             return _json(500, {"error": str(error)}, VOICE_HEADERS)
 
     @app.post("/api/voice/elevenlabs/preview/prefetch")
-    async def elevenlabs_voice_preview_prefetch(payload: Any = None) -> Response:
+    async def elevenlabs_voice_preview_prefetch(payload: Any = Body(default=None)) -> Response:
         try:
             status_code, result = await run_in_threadpool(voice_runtime.preview_prefetch, legacy_globals, payload)
             return _json(status_code, result, VOICE_HEADERS)

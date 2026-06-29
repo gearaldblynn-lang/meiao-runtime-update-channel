@@ -112,6 +112,10 @@ def chat(legacy_globals: dict[str, Any], payload: Any) -> tuple[int, dict[str, A
 
 
 def vector_status(legacy_globals: dict[str, Any]) -> dict[str, Any]:
+    get_vector_status_payload = legacy_globals.get("get_vector_status_payload")
+    if callable(get_vector_status_payload):
+        return get_vector_status_payload()
+
     store = _callable(legacy_globals, "read_vector_store")()
     store, _changed = _callable(legacy_globals, "sync_vector_store_profile")(store)
     for item in store.get("items", {}).values():

@@ -53,6 +53,22 @@ def _safe_network_status(network_status: NetworkStatusReader) -> dict[str, Any]:
         return status_error(error, "Flow network status returned an invalid payload.", ok=True)
 
 
+def safe_auth_status(auth_status: StatusReader) -> dict[str, Any]:
+    return _safe_auth_status(auth_status)
+
+
+def safe_chrome_status(chrome_status: StatusReader) -> dict[str, Any]:
+    return _safe_chrome_status(chrome_status)
+
+
+def safe_page_status(page_status: StatusReader) -> dict[str, Any]:
+    return _safe_page_status(page_status)
+
+
+def safe_network_status(network_status: NetworkStatusReader) -> dict[str, Any]:
+    return _safe_network_status(network_status)
+
+
 def safe_statuses(
     *,
     auth_status: StatusReader,

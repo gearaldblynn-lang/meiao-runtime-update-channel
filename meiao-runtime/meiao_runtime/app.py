@@ -21,7 +21,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.concurrency import run_in_threadpool
 from starlette.responses import Response
 
-from . import analysis_models, capcut_mate, capcut_task_adapter_runtime, copy_clean_runtime, diagnosis_runtime, flow_mutation_runtime, flow_runtime, flow_task_adapter_runtime, global_settings, license_runtime, m1_routes, task_runtime, voice_task_adapter_runtime
+from . import analysis_models, capcut_mate, capcut_task_adapter_runtime, copy_clean_runtime, diagnosis_runtime, flow_mutation_runtime, flow_runtime, flow_task_adapter_runtime, global_settings, go_runtime_diagnostic, license_runtime, m1_routes, task_runtime, voice_task_adapter_runtime
 from .state_store import StateStore
 
 
@@ -33,7 +33,8 @@ CLIENT_STATE_RECOVER_CACHE: dict[str, Any] = {"expires_at": 0.0, "payload": None
 CLIENT_STATE_ROUTE_HEADERS = {"X-Meiao-FastAPI-Route": "client-state"}
 MEDIA_STORAGE_LOCK = threading.RLock()
 MEDIA_STORAGE_ROUTE_HEADERS = {"X-Meiao-FastAPI-Route": "media-storage"}
-MEDIA_LIBRARY_CACHE: dict[str, Any] = {"expires_at": 0.0, "payload": None}
+MEDIA_LIBRARY_CACHE: dict[str, Any] = {"expires_at": 0.0, "payload": None, "media_signature": None}
+BATCH_DRAFT_PROJECTS_CACHE: dict[str, Any] = {"signature": None, "payload": None}
 LICENSE_ROUTE_HEADERS = {"X-Meiao-FastAPI-Route": "license"}
 BGM_LIBRARY_LOCK = threading.RLock()
 BGM_LIBRARY_ROUTE_HEADERS = {"X-Meiao-FastAPI-Route": "bgm-library"}
@@ -112,6 +113,95 @@ def clear_client_state_recover_cache() -> None:
 def clear_media_storage_cache() -> None:
     MEDIA_LIBRARY_CACHE["payload"] = None
     MEDIA_LIBRARY_CACHE["expires_at"] = 0.0
+    MEDIA_LIBRARY_CACHE["media_signature"] = None
+
+
+def clear_batch_draft_projects_cache() -> None:
+    BATCH_DRAFT_PROJECTS_CACHE["signature"] = None
+    BATCH_DRAFT_PROJECTS_CACHE["payload"] = None
+
+
+def file_signature(path: Path) -> tuple[str, int | None, int | None]:
+    try:
+        stat = path.stat()
+        return str(path), int(stat.st_mtime_ns), int(stat.st_size)
+    except FileNotFoundError:
+        return str(path), None, None
+
+
+def batch_draft_projects_signature(legacy_globals: dict[str, Any]) -> tuple[tuple[str, int | None, int | None], tuple[str, int | None, int | None]]:
+    sidecar = Path(legacy_globals.get("BATCH_DRAFT_PROJECTS_FILE") or Path.cwd() / "storage" / "batch-draft-projects" / "projects.json")
+    client_state = Path(legacy_globals.get("CLIENT_STATE_FILE") or Path.cwd() / "storage" / "client-state" / "state.json")
+    return file_signature(sidecar), file_signature(client_state)
+
+
+def media_root_signature(legacy_globals: dict[str, Any]) -> tuple[tuple[str, int], ...]:
+    root_value = legacy_globals.get("MEDIA_ROOT")
+    if root_value is None:
+        return ()
+    root = Path(root_value)
+    if not root.exists():
+        return ()
+    entries: list[tuple[str, int]] = []
+    try:
+        for item in root.iterdir():
+            if not item.is_dir():
+                continue
+            try:
+                stat = item.stat()
+            except OSError:
+                continue
+            entries.append((item.name, int(getattr(stat, "st_mtime_ns", int(stat.st_mtime * 1_000_000_000)))))
+    except OSError:
+        return ()
+    return tuple(sorted(entries))
+
+
+MEDIA_LIBRARY_RECOVERY_SKIP_NAMES = {
+    "bgm-library",
+    "capcut-fonts",
+    "capcut-test-audio",
+    "_capcut_assets",
+    "__capcut_assets__",
+    "__dedupe_aux__",
+}
+MEDIA_LIBRARY_RECOVERY_SKIP_PREFIXES = ("ab-dedup-", "flow-fission-")
+
+
+def media_library_has_uncovered_recovery_candidate(legacy_globals: dict[str, Any], saved_items: list[dict[str, Any]], deleted_media: dict[str, int]) -> bool:
+    root_value = legacy_globals.get("MEDIA_ROOT")
+    if root_value is None or not saved_items:
+        return True
+    root = Path(root_value)
+    if not root.exists():
+        return False
+    saved_media_ids: set[str] = set()
+    ingest_item_media_ids = legacy_globals.get("ingest_item_media_ids")
+    for item in saved_items:
+        if not isinstance(item, dict):
+            continue
+        if callable(ingest_item_media_ids):
+            saved_media_ids.update(ingest_item_media_ids(item))
+        media_id = str(item.get("backendMediaId") or "").strip()
+        if media_id:
+            saved_media_ids.add(media_id)
+    try:
+        for item in root.iterdir():
+            if not item.is_dir():
+                continue
+            name = item.name
+            if (
+                name in deleted_media
+                or name in MEDIA_LIBRARY_RECOVERY_SKIP_NAMES
+                or name.startswith(MEDIA_LIBRARY_RECOVERY_SKIP_PREFIXES)
+                or name.startswith("_")
+            ):
+                continue
+            if name not in saved_media_ids:
+                return True
+    except OSError:
+        return True
+    return False
 
 
 def legacy_path_from_request(request: Request, fallback_path: str) -> str:
@@ -187,9 +277,13 @@ def create_app(legacy_handler_cls: type[Any] | None = None) -> FastAPI:
     def capcut_export_video_task(payload: dict[str, Any]) -> tuple[int, dict[str, Any]]:
         return capcut_task_adapter_runtime.export_video_task(legacy_globals, payload)
 
+    def runtime_diagnostic_snapshot_task(payload: dict[str, Any], control: Any | None = None) -> tuple[int, dict[str, Any]]:
+        return go_runtime_diagnostic.snapshot_task(legacy_globals, payload, control=control)
+
     runtime_tasks = task_runtime.TaskRuntime(
         data_root,
         {
+            "runtime-diagnostic-snapshot": runtime_diagnostic_snapshot_task,
             "copy-clean-submit": copy_clean_submit_task,
             "diagnosis-extract": diagnosis_extract_task,
             "voice-elevenlabs-create": voice_elevenlabs_create_task,
@@ -217,10 +311,12 @@ def create_app(legacy_handler_cls: type[Any] | None = None) -> FastAPI:
 
     @app.get("/api/system/environment")
     async def system_environment() -> Response:
+        get_environment_health = legacy_globals.get("get_environment_health")
         build_environment_health = legacy_globals.get("build_environment_health")
-        if not callable(build_environment_health):
+        environment_health = get_environment_health if callable(get_environment_health) else build_environment_health
+        if not callable(environment_health):
             return json_response({"error": "Environment health is unavailable."}, status_code=500)
-        payload = await run_in_threadpool(build_environment_health)
+        payload = await run_in_threadpool(environment_health)
         return json_response(payload)
 
     def legacy_callable(name: str) -> Any:
@@ -276,9 +372,10 @@ def create_app(legacy_handler_cls: type[Any] | None = None) -> FastAPI:
             return json_response({"error": f"定位剪映安装失败：{error}"}, status_code=500, headers=CAPCUT_MATE_ROUTE_HEADERS)
 
     @app.get("/api/capcut-mate/assets")
-    async def capcut_mate_assets() -> Response:
+    async def capcut_mate_assets(request: Request) -> Response:
         try:
-            status_code, payload = await run_in_threadpool(capcut_mate.build_assets_result, legacy_globals)
+            force = request.query_params.get("force") == "1"
+            status_code, payload = await run_in_threadpool(capcut_mate.build_assets_result, legacy_globals, force=force)
             return json_response(payload, status_code=status_code, headers=CAPCUT_MATE_ROUTE_HEADERS)
         except Exception as error:
             log_legacy_error("api.capcut_mate.assets.error", error)
@@ -311,7 +408,7 @@ def create_app(legacy_handler_cls: type[Any] | None = None) -> FastAPI:
     @app.get("/api/flow/page/status")
     async def flow_page_status() -> Response:
         try:
-            payload = await run_in_threadpool(flow_runtime.page_status, legacy_globals)
+            payload = await run_in_threadpool(flow_runtime.passive_page_status, legacy_globals)
             return json_response(payload, headers=FLOW_RUNTIME_ROUTE_HEADERS)
         except Exception as error:
             return runtime_error_response("api.flow.page.status.error", error, FLOW_RUNTIME_ROUTE_HEADERS)
@@ -567,7 +664,12 @@ def create_app(legacy_handler_cls: type[Any] | None = None) -> FastAPI:
                     deleted_media = legacy_callable("read_deleted_media_map")()
                     filter_deleted = legacy_callable("filter_ingest_items_for_deleted_media")
                     saved_items = filter_deleted(state_store.read_sidecar("media-library"), deleted_media)
-                    disk_items = filter_deleted(legacy_callable("recover_media_library_items_from_disk")(), deleted_media)
+                    current_signature = media_root_signature(legacy_globals)
+                    has_uncovered_candidate = media_library_has_uncovered_recovery_candidate(legacy_globals, saved_items, deleted_media)
+                    if saved_items and (current_signature == MEDIA_LIBRARY_CACHE.get("media_signature") or not has_uncovered_candidate):
+                        disk_items: list[dict[str, Any]] = []
+                    else:
+                        disk_items = filter_deleted(legacy_callable("recover_media_library_items_from_disk")(), deleted_media)
                     items = legacy_callable("merge_media_library_items")(saved_items, disk_items)
                     if items != saved_items:
                         state_store.write_sidecar("media-library", items)
@@ -576,6 +678,7 @@ def create_app(legacy_handler_cls: type[Any] | None = None) -> FastAPI:
                     payload = {"items": items, "saved": len(saved_items), "recovered": len(items) - len(saved_items)}
                     MEDIA_LIBRARY_CACHE["payload"] = payload
                     MEDIA_LIBRARY_CACHE["expires_at"] = time.time() + 5
+                    MEDIA_LIBRARY_CACHE["media_signature"] = current_signature
                     return payload
 
             payload = await run_in_threadpool(load_items)
@@ -660,17 +763,33 @@ def create_app(legacy_handler_cls: type[Any] | None = None) -> FastAPI:
         try:
             def load_projects() -> dict[str, Any]:
                 with MEDIA_STORAGE_LOCK:
+                    signature = batch_draft_projects_signature(legacy_globals)
+                    cached_payload = BATCH_DRAFT_PROJECTS_CACHE.get("payload")
+                    if isinstance(cached_payload, dict) and signature == BATCH_DRAFT_PROJECTS_CACHE.get("signature"):
+                        return cached_payload
                     state = state_store.read_client_state()
                     state_projects = state.get("meiao-batch-draft-projects")
+                    sidecar_projects = state_store.read_sidecar("batch-draft-projects")
+                    state_project_items = state_projects if isinstance(state_projects, list) else []
                     projects = legacy_callable("normalize_batch_draft_projects")([
-                        *state_store.read_sidecar("batch-draft-projects"),
-                        *(state_projects if isinstance(state_projects, list) else []),
+                        *sidecar_projects,
+                        *state_project_items,
                     ])
                     if projects:
-                        state_store.write_sidecar("batch-draft-projects", projects)
-                        state_store.sync_client_state_value("meiao-batch-draft-projects", projects)
-                        clear_client_state_recover_cache()
-                    return {"projects": projects}
+                        wrote_state = False
+                        if not isinstance(state_projects, list) or state_projects != projects:
+                            state_store.sync_client_state_value("meiao-batch-draft-projects", projects)
+                            wrote_state = True
+                        elif sidecar_projects != projects:
+                            state_store.write_sidecar("batch-draft-projects", projects)
+                            wrote_state = True
+                        if wrote_state:
+                            clear_client_state_recover_cache()
+                            signature = batch_draft_projects_signature(legacy_globals)
+                    payload = {"projects": projects}
+                    BATCH_DRAFT_PROJECTS_CACHE["signature"] = signature
+                    BATCH_DRAFT_PROJECTS_CACHE["payload"] = payload
+                    return payload
 
             payload = await run_in_threadpool(load_projects)
             return json_response(payload, headers=MEDIA_STORAGE_ROUTE_HEADERS)
@@ -700,6 +819,7 @@ def create_app(legacy_handler_cls: type[Any] | None = None) -> FastAPI:
                     state_store.write_sidecar("batch-draft-projects", projects)
                     state_store.sync_client_state_value("meiao-batch-draft-projects", projects, replace=exact_replace)
                     clear_client_state_recover_cache()
+                    clear_batch_draft_projects_cache()
                     return {"__status": 200, "payload": {"ok": True, "count": len(projects), "projects": projects}}
 
             result = await run_in_threadpool(save_projects)

@@ -17,6 +17,11 @@ class StateStore:
         with self._lock:
             return callback()
 
+    def clear_client_state_health_cache(self) -> None:
+        clear_cache = self.legacy_globals.get("clear_client_state_health_cache")
+        if callable(clear_cache):
+            clear_cache()
+
     def recover_client_state(self) -> dict[str, Any]:
         recover = self.legacy_globals.get("build_recovered_client_state")
         if not callable(recover):
@@ -25,7 +30,7 @@ class StateStore:
         return value if isinstance(value, dict) else {}
 
     def check_client_state_health(self) -> dict[str, Any]:
-        check_health = self.legacy_globals.get("build_client_state_health")
+        check_health = self.legacy_globals.get("get_client_state_health") or self.legacy_globals.get("build_client_state_health")
         if not callable(check_health):
             raise RuntimeError("Legacy client state health is unavailable.")
         value = check_health()
@@ -49,6 +54,7 @@ class StateStore:
             if callable(should_snapshot) and callable(snapshot) and should_snapshot(current, state):
                 snapshot(current, snapshot_reason)
             self._atomic_write_json(self._path("CLIENT_STATE_FILE"), state)
+            self.clear_client_state_health_cache()
 
     def read_sidecar(self, name: str) -> list[dict[str, Any]]:
         with self._lock:
@@ -70,6 +76,7 @@ class StateStore:
                 if callable(normalize):
                     payload = normalize(items)
             self._atomic_write_json(self._sidecar_path(name), payload)
+            self.clear_client_state_health_cache()
 
     def sync_client_state_sidecars(self, state: dict[str, Any]) -> None:
         with self._lock:
