@@ -1,6 +1,6 @@
 {
-    "version":  "20260629-output-material-query-cleaning",
-    "createdAt":  "2026-06-29T08:19:32.6547999Z",
+    "version":  "20260629-output-material-query-general",
+    "createdAt":  "2026-06-29T08:29:05.7525058Z",
     "channel":  "git-update",
     "payloadMode":  "partial",
     "repository":  "https://github.com/gearaldblynn-lang/meiao-runtime-update-channel.git",
@@ -62,7 +62,7 @@
                              "integrations/capcut_mate/upstream/capcut-mate-main/temp"
                          ],
     "fileCount":  262,
-    "payloadHash":  "d8f22e22b267a834ebfdf3dda1b2a2d1d0b233597fc9889df8cb49b29a681a99",
+    "payloadHash":  "27393a58ea167a649c2adf157a3444f1059a7b873101c6395997d235a33ade0f",
     "files":  [
                   {
                       "path":  "backup-runtime-data.ps1",
@@ -80,34 +80,29 @@
                       "size":  150
                   },
                   {
-                      "path":  "frontend/assets/AIOutput-BcmEnT56.js",
-                      "sha256":  "65d0964b7940eab51c179839513d5bf31284650e2e02d7991c4b1dc8e433526c",
+                      "path":  "frontend/assets/AIOutput-BnUX_jCM.js",
+                      "sha256":  "109aff6116075d8e0b5ecb26858aa1a4e1e70c57203f9a9ad9afb0c95e6b0df7",
                       "size":  49936
                   },
                   {
-                      "path":  "frontend/assets/CopyClean-Imjp1qW5.js",
-                      "sha256":  "c19958519b107d8eb3ef54866562d6bc5244af6f33c65a3cfb9d88f354e74722",
+                      "path":  "frontend/assets/CopyClean-t4LdNpu_.js",
+                      "sha256":  "5459e4e7842595e8e69ffb923d31b17a4f92fa6ab86cf9f17143c935515af4fa",
                       "size":  48714
                   },
                   {
-                      "path":  "frontend/assets/draftTemplates-BYYxDEzF.js",
-                      "sha256":  "884c3d4ebc04d5326516bc17e99f69aec092fc0140495176b3f92cd63e17da39",
+                      "path":  "frontend/assets/draftTemplates-DFc2A6hp.js",
+                      "sha256":  "2dbe6ee3eea09c697cdc5b47eacb6f979594b946e85640f286c17015e6148d9e",
                       "size":  17594
                   },
                   {
-                      "path":  "frontend/assets/DraftTemplates-WjWs51OT.js",
-                      "sha256":  "ab148f6956b2fff626885addfd013236fa62689777a50e5d3dde676f12147890",
+                      "path":  "frontend/assets/DraftTemplates-DZHimjXe.js",
+                      "sha256":  "ff543aa5711d222c91181c0e5960a4fd86c521afe74f59b0d5d6f6fc412700d6",
                       "size":  143962
                   },
                   {
-                      "path":  "frontend/assets/Fission-NJ7-rT9Z.js",
-                      "sha256":  "de49c091860c06b5d3dcfefacdde73869c7505f7991c28cb8823779740c0ee6f",
+                      "path":  "frontend/assets/Fission-CnfFpicj.js",
+                      "sha256":  "08c5cc073be71a9b70a90158ddc153baf4b43229a584c44ad36cde2c0e871965",
                       "size":  173744
-                  },
-                  {
-                      "path":  "frontend/assets/index-B62gLjEH.js",
-                      "sha256":  "f59c9ffc643aab5a59b2ca1b1f2eceb008a66ca15408d394818d945274ffe771",
-                      "size":  482213
                   },
                   {
                       "path":  "frontend/assets/index-De5R0rjT.css",
@@ -115,9 +110,14 @@
                       "size":  109185
                   },
                   {
-                      "path":  "frontend/assets/OutputTasks-DrK6ax8S.js",
-                      "sha256":  "6130152ad0c4543ca2799730378d78371ae106661ed179b05485b8a7a5d40141",
-                      "size":  174964
+                      "path":  "frontend/assets/index-DslNbvku.js",
+                      "sha256":  "11b9594a3e339d7ebaef960dffe0861f20d467ae1266407c827dd9c4d7708171",
+                      "size":  482213
+                  },
+                  {
+                      "path":  "frontend/assets/OutputTasks-B6UekmkM.js",
+                      "sha256":  "ba4b7bf08019e5e168f63b06e622e67c5012b96b61f2167dfb24739ae20aa263",
+                      "size":  175865
                   },
                   {
                       "path":  "frontend/assets/vendor-icons-B6_IDGPv.js",
@@ -161,7 +161,7 @@
                   },
                   {
                       "path":  "frontend/index.html",
-                      "sha256":  "51a68e990fe1852dc51e3b63c93d457f304a3068d41cf9153bb4e344178e2237",
+                      "sha256":  "5d0cac7470c519d2852aa5c98910890d56fdf8c92d74f61698af3205ff868f23",
                       "size":  560
                   },
                   {
