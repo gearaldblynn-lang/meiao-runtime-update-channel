@@ -340,9 +340,9 @@ if (-not (Test-Path -LiteralPath $cacheParent)) {
 }
 
 if (Test-Path -LiteralPath (Join-Path $cacheFull ".git")) {
-  Invoke-Git @("fetch", "--prune", "origin") $cacheFull
-  Invoke-Git @("checkout", $Branch) $cacheFull
-  Invoke-Git @("pull", "--ff-only", "origin", $Branch) $cacheFull
+  Invoke-Git @("fetch", "--depth", "1", "--prune", "origin", $Branch) $cacheFull
+  Invoke-Git @("checkout", "-B", $Branch, "origin/$Branch") $cacheFull
+  Invoke-Git @("reset", "--hard", "origin/$Branch") $cacheFull
 } else {
   if (Test-Path -LiteralPath $cacheFull) {
     $existing = @(Get-ChildItem -LiteralPath $cacheFull -Force)
@@ -350,7 +350,7 @@ if (Test-Path -LiteralPath (Join-Path $cacheFull ".git")) {
       throw "CacheRoot exists but is not a Git checkout and is not empty: $cacheFull"
     }
   }
-  Invoke-Git @("clone", "--branch", $Branch, $RepoUrl, $cacheFull)
+  Invoke-Git @("clone", "--depth", "1", "--branch", $Branch, $RepoUrl, $cacheFull)
 }
 
 $payloadRoot = Join-Path $cacheFull "meiao-runtime"

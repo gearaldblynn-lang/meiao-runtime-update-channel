@@ -1,6 +1,6 @@
 {
-    "version":  "20260629-g7e",
-    "createdAt":  "2026-06-29T01:53:32.3380410Z",
+    "version":  "20260629-g7e2",
+    "createdAt":  "2026-06-29T02:05:05.4792577Z",
     "channel":  "git-update",
     "payloadMode":  "partial",
     "repository":  "https://github.com/gearaldblynn-lang/meiao-runtime-update-channel.git",
@@ -62,7 +62,7 @@
                              "integrations/capcut_mate/upstream/capcut-mate-main/temp"
                          ],
     "fileCount":  262,
-    "payloadHash":  "71641cbe1761d04a5c26cfe53c6b954047e4ef19a116f1ce5f2e87297209ff48",
+    "payloadHash":  "72c80dae547a5499f915def6e5a769b3ef91b68e4a2c3ede43cd8716af7ba38d",
     "files":  [
                   {
                       "path":  "backup-runtime-data.ps1",
@@ -1361,8 +1361,8 @@
                   },
                   {
                       "path":  "update-from-git.ps1",
-                      "sha256":  "ccca4275f54a2bfef872b14a5e1573554c78fade01e02ecbafe4f49b666965ea",
-                      "size":  12827
+                      "sha256":  "312b779ce1b7f720717df94026a827c566d3a97dfba4f85f947f8fe66b6708d2",
+                      "size":  12889
                   },
                   {
                       "path":  "update-meiao.bat",
