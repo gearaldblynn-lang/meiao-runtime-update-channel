@@ -30,7 +30,7 @@ from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse, unquote, quote, parse_qs
-from urllib.error import HTTPError
+from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen, build_opener, ProxyHandler
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -210,6 +210,12 @@ SHARED_SCENE_LIBRARY_PROJECT_ID = "scene-library"
 VECTOR_VIDEO_FPS = 1
 VECTOR_VIDEO_FPS_MIN_DURATION = 2.0
 VECTOR_INLINE_VIDEO_MAX_BYTES = 8 * 1024 * 1024
+VECTOR_VIDEO_PROXY_SOURCE_MIN_BYTES = 8 * 1024 * 1024
+VECTOR_VIDEO_PROXY_MAX_WIDTH = 480
+VECTOR_VIDEO_PROXY_CRF = 30
+VECTOR_VIDEO_PROXY_MAX_FRAMES = 10
+VECTOR_VIDEO_PROXY_OUTPUT_FPS = 1
+VECTOR_EMBED_RETRYABLE_ATTEMPTS = 2
 VECTOR_AUX_PROFILE_KEYS = ["voice", "product", "actionScene"]
 JSON_STORE_WRITE_LOCK = threading.RLock()
 CAPCUT_DRAFT_WRITE_LOCK = threading.Lock()
@@ -24451,6 +24457,49 @@ def extract_embedding(response_data: dict) -> list[float]:
     raise RuntimeError("豆包向量接口未返回 embedding")
 
 
+def vector_input_summary(inputs: list[dict]) -> list[dict]:
+    summary = []
+    for index, item in enumerate(inputs):
+        if not isinstance(item, dict):
+            continue
+        item_type = str(item.get("type") or "")
+        entry = {"index": index, "type": item_type}
+        if item_type == "text":
+            entry["chars"] = len(str(item.get("text") or ""))
+        elif item_type == "image_url":
+            image_url = item.get("image_url") if isinstance(item.get("image_url"), dict) else {}
+            url = str(image_url.get("url") or "")
+            entry["urlKind"] = "data" if url.startswith("data:") else "url"
+            entry["urlChars"] = len(url)
+        elif item_type == "video_url":
+            video_url = item.get("video_url") if isinstance(item.get("video_url"), dict) else {}
+            url = str(video_url.get("url") or "")
+            parsed = urlparse(url)
+            entry["host"] = parsed.hostname or ""
+            entry["pathTail"] = parsed.path[-96:]
+            entry["fps"] = video_url.get("fps")
+        summary.append(entry)
+    return summary
+
+
+def read_http_error_body(exc: HTTPError, limit: int = 2000) -> str:
+    try:
+        body = exc.read().decode("utf-8", errors="replace")
+    except Exception:
+        body = ""
+    return body[:limit]
+
+
+def is_retryable_vector_embedding_error(error_text: str) -> bool:
+    lower = str(error_text or "").lower()
+    return (
+        "timeout occurred while processing video" in lower
+        or "eof occurred in violation of protocol" in lower
+        or "connection reset" in lower
+        or "remote end closed connection" in lower
+    )
+
+
 def call_doubao_embedding(inputs: list[dict], instructions: str | None = None) -> tuple[list[float], dict]:
     ark = get_ark_config()
     api_key = ark["api_key"]
@@ -24465,24 +24514,63 @@ def call_doubao_embedding(inputs: list[dict], instructions: str | None = None) -
     }
     if instructions:
         payload["instructions"] = instructions
-    request = Request(
-        ARK_EMBEDDING_URL,
-        data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
-        headers={
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {api_key}",
-        },
-        method="POST",
-    )
-    try:
-        with urlopen(request, timeout=60) as response:
-            response_data = json.loads(response.read().decode("utf-8"))
-        return l2_normalize(extract_embedding(response_data)), response_data.get("usage") if isinstance(response_data.get("usage"), dict) else {}
-    except IngestError:
-        raise
-    except Exception as exc:
-        append_debug_log("vector.doubao.error", {"errorType": type(exc).__name__, "error": str(exc)})
-        raise IngestError(f"豆包向量化失败：{exc}", "VECTOR_EMBED_FAILED", "RETRY") from exc
+    body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+    input_summary = vector_input_summary(inputs)
+    last_error: Exception | None = None
+    for attempt in range(1, VECTOR_EMBED_RETRYABLE_ATTEMPTS + 1):
+        request = Request(
+            ARK_EMBEDDING_URL,
+            data=body,
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {api_key}",
+            },
+            method="POST",
+        )
+        try:
+            with urlopen(request, timeout=60) as response:
+                response_data = json.loads(response.read().decode("utf-8"))
+            return l2_normalize(extract_embedding(response_data)), response_data.get("usage") if isinstance(response_data.get("usage"), dict) else {}
+        except IngestError:
+            raise
+        except HTTPError as exc:
+            response_body = read_http_error_body(exc)
+            append_debug_log(
+                "vector.doubao.error",
+                {
+                    "errorType": type(exc).__name__,
+                    "error": str(exc),
+                    "status": exc.code,
+                    "responseBody": response_body,
+                    "attempt": attempt,
+                    "inputSummary": input_summary,
+                },
+            )
+            last_error = exc
+            if attempt < VECTOR_EMBED_RETRYABLE_ATTEMPTS and is_retryable_vector_embedding_error(response_body):
+                time.sleep(attempt)
+                continue
+            raise IngestError(f"豆包向量化失败：{exc}", "VECTOR_EMBED_FAILED", "RETRY") from exc
+        except (URLError, TimeoutError, OSError) as exc:
+            append_debug_log(
+                "vector.doubao.error",
+                {
+                    "errorType": type(exc).__name__,
+                    "error": str(exc),
+                    "attempt": attempt,
+                    "inputSummary": input_summary,
+                },
+            )
+            last_error = exc
+            if attempt < VECTOR_EMBED_RETRYABLE_ATTEMPTS and is_retryable_vector_embedding_error(str(exc)):
+                time.sleep(attempt)
+                continue
+            raise IngestError(f"豆包向量化失败：{exc}", "VECTOR_EMBED_FAILED", "RETRY") from exc
+        except Exception as exc:
+            append_debug_log("vector.doubao.error", {"errorType": type(exc).__name__, "error": str(exc), "attempt": attempt, "inputSummary": input_summary})
+            last_error = exc
+            raise IngestError(f"豆包向量化失败：{exc}", "VECTOR_EMBED_FAILED", "RETRY") from exc
+    raise IngestError(f"豆包向量化失败：{last_error}", "VECTOR_EMBED_FAILED", "RETRY")
 
 
 def normalize_chat_message_content(content: object) -> list[dict]:
@@ -25337,6 +25425,122 @@ def video_file_to_data_url(video_path: Path | None) -> str | None:
     return f"data:{mime};base64,{encoded}"
 
 
+def vector_video_proxy_path(video_path: Path) -> Path:
+    stat = video_path.stat()
+    signature = "|".join(
+        [
+            str(video_path.resolve()),
+            str(stat.st_size),
+            str(int(stat.st_mtime_ns)),
+            str(VECTOR_VIDEO_PROXY_MAX_WIDTH),
+            str(VECTOR_VIDEO_PROXY_CRF),
+            str(VECTOR_VIDEO_FPS),
+            str(VECTOR_VIDEO_PROXY_MAX_FRAMES),
+            str(VECTOR_VIDEO_PROXY_OUTPUT_FPS),
+        ],
+    )
+    digest = hashlib.sha1(signature.encode("utf-8")).hexdigest()[:12]
+    proxy_dir = DATA_ROOT / "vectors" / "video-proxies"
+    return proxy_dir / f"{sanitize_filename(video_path.stem)}-{digest}.mp4"
+
+
+def vector_video_proxy_filter(video_path: Path) -> tuple[str, float, float]:
+    duration = probe_video_duration(video_path) or 0.0
+    source_fps = VECTOR_VIDEO_FPS
+    if duration > 0:
+        source_fps = min(VECTOR_VIDEO_FPS, max(0.1, VECTOR_VIDEO_PROXY_MAX_FRAMES / duration))
+    output_fps = VECTOR_VIDEO_PROXY_OUTPUT_FPS
+    return (
+        f"fps={source_fps:.4f},scale={VECTOR_VIDEO_PROXY_MAX_WIDTH}:-2,setpts=N/({output_fps}*TB)",
+        source_fps,
+        output_fps,
+    )
+
+
+def create_vector_embedding_video_proxy(video_path: Path) -> Path:
+    if not video_path.exists() or not video_path.is_file():
+        raise IngestError("本地视频文件不存在，无法生成向量化视频代理。", "VECTOR_VIDEO_PROXY_SOURCE_MISSING", "REUPLOAD_VIDEO")
+    if not FFMPEG_EXE.exists():
+        raise IngestError("缺少 ffmpeg，无法生成向量化视频代理。", "VECTOR_VIDEO_PROXY_FFMPEG_MISSING", "CHECK_RUNTIME")
+
+    proxy_path = vector_video_proxy_path(video_path)
+    if proxy_path.exists() and proxy_path.stat().st_size > 0:
+        return proxy_path
+
+    proxy_path.parent.mkdir(parents=True, exist_ok=True)
+    temp_path = proxy_path.with_suffix(f".{uuid.uuid4().hex}.tmp.mp4")
+    video_filter, source_fps, output_fps = vector_video_proxy_filter(video_path)
+    command = [
+        str(FFMPEG_EXE),
+        "-y",
+        "-i",
+        str(video_path),
+        "-an",
+        "-vf",
+        video_filter,
+        "-r",
+        str(output_fps),
+        "-c:v",
+        "libx264",
+        "-preset",
+        "veryfast",
+        "-crf",
+        str(VECTOR_VIDEO_PROXY_CRF),
+        "-movflags",
+        "+faststart",
+        str(temp_path),
+    ]
+    try:
+        completed = subprocess.run(command, capture_output=True, timeout=180)
+        if completed.returncode != 0 or not temp_path.exists() or temp_path.stat().st_size <= 0:
+            raise IngestError(
+                "ffmpeg 生成向量化视频代理失败。",
+                "VECTOR_VIDEO_PROXY_FAILED",
+                "CHECK_SCENE",
+            )
+        temp_path.replace(proxy_path)
+    except IngestError:
+        raise
+    except Exception as exc:
+        raise IngestError(f"生成向量化视频代理失败：{exc}", "VECTOR_VIDEO_PROXY_FAILED", "CHECK_SCENE") from exc
+    finally:
+        try:
+            temp_path.unlink(missing_ok=True)
+        except Exception:
+            pass
+    append_debug_log(
+        "vector.video_proxy.created",
+        {
+            "source": str(video_path),
+            "sourceSize": video_path.stat().st_size,
+            "proxy": str(proxy_path),
+            "proxySize": proxy_path.stat().st_size,
+            "sourceFps": source_fps,
+            "outputFps": output_fps,
+            "maxFrames": VECTOR_VIDEO_PROXY_MAX_FRAMES,
+            "maxWidth": VECTOR_VIDEO_PROXY_MAX_WIDTH,
+        },
+    )
+    return proxy_path
+
+
+def prepare_vector_embedding_video_url(raw_video_url: str, video_path: Path | None) -> str:
+    if video_path and video_path.exists() and video_path.stat().st_size > VECTOR_VIDEO_PROXY_SOURCE_MIN_BYTES:
+        try:
+            proxy_path = create_vector_embedding_video_proxy(video_path.resolve())
+            digest = hashlib.sha1(str(proxy_path).encode("utf-8")).hexdigest()[:8]
+            upload_path = f"analysis-media/{datetime.now().strftime('%Y%m%d')}"
+            upload_name = f"{sanitize_filename(proxy_path.stem)}-{digest}.mp4"
+            return upload_analysis_file_to_kie_cached(proxy_path, upload_name, upload_path)
+        except IngestError as exc:
+            append_debug_log("vector.video_proxy.failed", {"source": str(video_path), "error": str(exc), "code": exc.code})
+            raise
+        except Exception as exc:
+            append_debug_log("vector.video_proxy.failed", {"source": str(video_path), "errorType": type(exc).__name__, "error": str(exc)})
+            raise
+    return prepare_analysis_media_url(raw_video_url)
+
+
 def estimate_input_cost(inputs: list[dict], usage: dict | None = None) -> dict:
     text_tokens = 0
     image_tokens = 0
@@ -25427,7 +25631,7 @@ def build_scene_embedding_inputs(segment: dict) -> list[dict]:
     if video_path and duration > VECTOR_VIDEO_FPS_MIN_DURATION:
         raw_video_url = str(segment.get("url") or "").strip()
         if raw_video_url:
-            hosted_video_url = prepare_analysis_media_url(raw_video_url)
+            hosted_video_url = prepare_vector_embedding_video_url(raw_video_url, video_path)
             parts.append({"type": "video_url", "video_url": {"url": hosted_video_url, "fps": VECTOR_VIDEO_FPS}})
 
     if not parts:

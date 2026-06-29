@@ -1,6 +1,6 @@
 {
-    "version":  "20260629-output-material-query-general",
-    "createdAt":  "2026-06-29T08:29:05.7525058Z",
+    "version":  "20260629-vector-video-proxy",
+    "createdAt":  "2026-06-29T14:56:34.1536100Z",
     "channel":  "git-update",
     "payloadMode":  "partial",
     "repository":  "https://github.com/gearaldblynn-lang/meiao-runtime-update-channel.git",
@@ -62,7 +62,7 @@
                              "integrations/capcut_mate/upstream/capcut-mate-main/temp"
                          ],
     "fileCount":  262,
-    "payloadHash":  "27393a58ea167a649c2adf157a3444f1059a7b873101c6395997d235a33ade0f",
+    "payloadHash":  "d19a421184adc7b539f935fa88174d04e68dcb110bc9bc1f2e2515c09f2a3bc7",
     "files":  [
                   {
                       "path":  "backup-runtime-data.ps1",
@@ -1311,8 +1311,8 @@
                   },
                   {
                       "path":  "server.py",
-                      "sha256":  "cd72bf5fd60d25455ebd411a6ddbdfcca2e2db4b1f33187d39dce3602e63d48a",
-                      "size":  1595028
+                      "sha256":  "1fcffb947ee76f1c489051c5ebb599c52888e5abccb92f8b8dacece92ee2705b",
+                      "size":  1603375
                   },
                   {
                       "path":  "start-meiao.bat",
