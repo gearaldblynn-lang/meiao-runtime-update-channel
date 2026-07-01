@@ -638,20 +638,14 @@ class CapCutMateAdapter:
         }
 
     def maybe_recognize_subtitles(self, plan: dict[str, Any], draft_url: str, audio_result: dict[str, Any]) -> dict[str, Any]:
+        if is_jianying_subtitle_recognition_plan(plan):
+            return {"recognized": False, "skipped": True, "reason": "deferred to export"}
         if list(plan.get("captions") or []):
             return {"recognized": False, "skipped": True, "reason": "content captions added; intelligent recognition is manual until clear-existing-subtitles is supported"}
         subtitle_preset = str(plan.get("subtitlePreset") or "none").strip()
         if subtitle_preset == "none":
             return {"recognized": False, "skipped": True, "reason": "subtitle disabled"}
-        if not list(audio_result.get("audio_ids") or []):
-            return {"recognized": False, "skipped": True, "reason": "no audio track"}
-        speed_warning = detect_unstable_audio_speed(draft_url)
-        if speed_warning:
-            return {"recognized": False, "skipped": True, "reason": speed_warning}
-        try:
-            return self.recognize_subtitles(draft_url)
-        except Exception as exc:
-            return {"recognized": False, "skipped": False, "error": str(exc)}
+        return {"recognized": False, "skipped": True, "reason": "script captions mode"}
 
 
 def draft_id_from_url(draft_url: str) -> str:
@@ -1368,6 +1362,8 @@ def keyword_sound_infos_from_plan(plan: dict[str, Any], clips: list[DraftClip], 
 
 
 def captions_from_plan(plan: dict[str, Any], clips: list[DraftClip], *, target_duration_ms: int = 0) -> list[dict[str, Any]]:
+    if is_jianying_subtitle_recognition_plan(plan):
+        return []
     raw_captions = plan.get("captions")
     if not isinstance(raw_captions, list) or not raw_captions:
         return []
@@ -1420,6 +1416,10 @@ def captions_from_plan(plan: dict[str, Any], clips: list[DraftClip], *, target_d
             caption["out_animation"] = str(plan.get("captionTextAnimationOut") or "").strip()
         captions.append(caption)
     return captions
+
+
+def is_jianying_subtitle_recognition_plan(plan: dict[str, Any]) -> bool:
+    return str(plan.get("subtitlePreset") or "").strip() == "jianying_recognize"
 
 
 def caption_style_from_plan(plan: dict[str, Any], *, width: int, height: int) -> dict[str, Any]:

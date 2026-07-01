@@ -438,7 +438,12 @@ def export_video(legacy_globals: dict[str, Any], payload: Any) -> tuple[int, dic
         delay = _startup_delay_seconds(legacy_globals)
         if delay > 0:
             time.sleep(delay)
+        recognize_result = None
+        if should_recognize_subtitles_before_export(payload):
+            recognize_result = adapter.recognize_subtitles(draft_url)
         result = adapter.generate_video(draft_url, str(payload.get("apiKey") or "").strip() or None)
+        if isinstance(result, dict) and recognize_result is not None:
+            result = {**result, "recognizeSubtitlesResult": recognize_result}
         append_debug_log(
             legacy_globals,
             "api.capcut_mate.export_video",
@@ -446,6 +451,7 @@ def export_video(legacy_globals: dict[str, Any], payload: Any) -> tuple[int, dic
                 "draftUrl": draft_url,
                 "capcutPath": capcut_path,
                 "stoppedOtherVersions": launch_result.get("stoppedOtherVersions", []),
+                "recognizeSubtitlesResult": recognize_result,
                 "result": result,
             },
         )
@@ -457,3 +463,8 @@ def export_video(legacy_globals: dict[str, Any], payload: Any) -> tuple[int, dic
             {"errorType": type(exc).__name__, "error": str(exc), "traceback": traceback.format_exc()},
         )
         return 500, {"error": f"提交导出失败：{exc}"}
+def should_recognize_subtitles_before_export(payload: Any) -> bool:
+    if not isinstance(payload, dict):
+        return False
+    return str(payload.get("subtitlePreset") or "").strip() == "jianying_recognize"
+

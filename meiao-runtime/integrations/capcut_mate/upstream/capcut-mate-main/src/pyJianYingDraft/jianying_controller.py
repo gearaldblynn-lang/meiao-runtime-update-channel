@@ -235,6 +235,7 @@ class JianyingController:
             try:
                 clicked = self.click_any_desc(menu_candidates, wait=1.0, include_desktop=True, max_depth=4)
                 logger.info("recognize subtitles context menu clicked by control %s: %s", desc, clicked)
+                self.click_subtitle_recognition_start_button()
                 return True
             except AutomationError:
                 pyautogui.press("esc")
@@ -257,6 +258,7 @@ class JianyingController:
             try:
                 clicked = self.click_any_desc(menu_candidates, wait=1.0, include_desktop=True, max_depth=4)
                 logger.info("recognize subtitles context menu clicked by fallback point: %s", clicked)
+                self.click_subtitle_recognition_start_button()
                 return True
             except AutomationError:
                 pyautogui.press("esc")
@@ -274,11 +276,14 @@ class JianyingController:
         pyautogui.click(x=rect.left + 337, y=rect.top + 53, button="left")
         time.sleep(0.8)
         self.click_desc("VETreeMainCellItem:识别字幕", wait=1.2)
+        self.click_subtitle_recognition_start_button()
 
+    def click_subtitle_recognition_start_button(self) -> None:
+        """点击识别字幕面板里的“开始识别”按钮。"""
+        rect = self.app.BoundingRectangle
         try:
             clicked = self.click_any_desc([
                 "开始识别",
-                "识别字幕",
                 "开始匹配",
                 "SmartCaption",
                 "Recognize",
@@ -291,9 +296,9 @@ class JianyingController:
             # 5.9 中“开始识别”按钮经常不暴露描述，按识别字幕面板中的蓝色主按钮兜底。
             button = self.find_blue_button_in_region(
                 rect.left + 80,
-                rect.top + 220,
-                rect.left + 560,
-                rect.top + 470,
+                rect.top + 180,
+                rect.left + 840,
+                rect.top + 600,
             )
             if button:
                 x, y = button

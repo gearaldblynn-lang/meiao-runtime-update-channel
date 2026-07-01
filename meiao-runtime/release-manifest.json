@@ -1,6 +1,6 @@
 {
-    "version":  "20260630-output-material-search-segment-source",
-    "createdAt":  "2026-06-30T15:27:08.7430263Z",
+    "version":  "20260701-smart-subtitle-recognition",
+    "createdAt":  "2026-07-01T09:04:22.7152867Z",
     "channel":  "git-update",
     "payloadMode":  "partial",
     "repository":  "https://github.com/gearaldblynn-lang/meiao-runtime-update-channel.git",
@@ -62,7 +62,7 @@
                              "integrations/capcut_mate/upstream/capcut-mate-main/temp"
                          ],
     "fileCount":  262,
-    "payloadHash":  "88f07ccc19d90bebbc6186f67093e09d07eaf83fb4b1fdbb2be33c5f16231a78",
+    "payloadHash":  "59966e0102b73975b3be3bd8e2a755a1ef540bd8b10da35f76810b49d30cf957",
     "files":  [
                   {
                       "path":  "backup-runtime-data.ps1",
@@ -80,29 +80,34 @@
                       "size":  150
                   },
                   {
-                      "path":  "frontend/assets/AIOutput-DHLcjLcQ.js",
-                      "sha256":  "826b662816187d2673f17c78fed781a35fafbbd6c5b3dbeddec3c83ee3e63e4d",
+                      "path":  "frontend/assets/AIOutput-DShkWmY6.js",
+                      "sha256":  "eb1ef9d64eff76ad58c3582500dbc7b54065c24648f8c97e0fff3bd155025094",
                       "size":  49936
                   },
                   {
-                      "path":  "frontend/assets/CopyClean-DUEFOXEr.js",
-                      "sha256":  "1141f23fadc3b580cef47a7a27add54e221560bd6413f17a4fe6862e77d1b336",
+                      "path":  "frontend/assets/CopyClean-Vhxmm24_.js",
+                      "sha256":  "19ff914d008f1834b1a580cba867af86d7f0bcde4ce5b9e7d2a99a607c653803",
                       "size":  48714
                   },
                   {
-                      "path":  "frontend/assets/DraftTemplates-C9hDbbfz.js",
-                      "sha256":  "62afa9a68016989f3562b9eda7fdeab1337c19626c905dcc67d907ad4af66106",
-                      "size":  143962
-                  },
-                  {
-                      "path":  "frontend/assets/draftTemplates-LB-CYSaq.js",
-                      "sha256":  "e7cb71a3d0714c89cd176b9daf8d1b606944816900b0359ce492d34c20e7b7a5",
+                      "path":  "frontend/assets/draftTemplates-B9BSLNFc.js",
+                      "sha256":  "98266897e90f276203b224018f81dfa5b5cb55364c92ea1f4e8e7e3dd75c89f8",
                       "size":  17594
                   },
                   {
-                      "path":  "frontend/assets/Fission-C65BjktS.js",
-                      "sha256":  "26e4880f3acaa3c2f16061e2eb62523972cf08fad4976a47734c506df4b711e7",
+                      "path":  "frontend/assets/DraftTemplates-BJo6YcgU.js",
+                      "sha256":  "948294a5551d68f4ed82a54581b60e997c1a6f9b4103e86b30d2dfafaac2f557",
+                      "size":  143962
+                  },
+                  {
+                      "path":  "frontend/assets/Fission-exL_C6G6.js",
+                      "sha256":  "f56644e101b3eb190d6d0087c40b75d5c16faf6ddb9258300c13fabed216346a",
                       "size":  173744
+                  },
+                  {
+                      "path":  "frontend/assets/index-a_s0hts9.js",
+                      "sha256":  "1fab704d87e25952f3e5725e1d6628c5c0e8694c4896e96f84fa589b038dc457",
+                      "size":  482231
                   },
                   {
                       "path":  "frontend/assets/index-De5R0rjT.css",
@@ -110,14 +115,9 @@
                       "size":  109185
                   },
                   {
-                      "path":  "frontend/assets/index-DUDOeU96.js",
-                      "sha256":  "06497f905cd3890a75000e221f8776511490f84875a73793fe601b730d38d1ed",
-                      "size":  482204
-                  },
-                  {
-                      "path":  "frontend/assets/OutputTasks-CcfA_rD_.js",
-                      "sha256":  "c0dac048781a5001b624ba8ffad42803dba4c013be322f562537e4673de7f067",
-                      "size":  177362
+                      "path":  "frontend/assets/OutputTasks-B6r0NXwF.js",
+                      "sha256":  "49761e565df0a7d111d2dadd941186d22f3d3f46a4b9e8a2befbcec8fd583088",
+                      "size":  177510
                   },
                   {
                       "path":  "frontend/assets/vendor-icons-B6_IDGPv.js",
@@ -161,7 +161,7 @@
                   },
                   {
                       "path":  "frontend/index.html",
-                      "sha256":  "9b607a5b7443d9aed65b8f78fbd890f7d587e1def4c2b64e1278a983528cf3d3",
+                      "sha256":  "401fa522a710c827b243472c8e230839296b4a4d1d49b8addbbe99240c45441f",
                       "size":  560
                   },
                   {
@@ -181,8 +181,8 @@
                   },
                   {
                       "path":  "integrations/capcut_mate/adapter.py",
-                      "sha256":  "556534539a7b70f2432457d62757379376af88cbcc6792f1e6815de72dd0ef8c",
-                      "size":  84038
+                      "sha256":  "3aa61da99b7c146d677268a453ff5fa4982e5a00d44f82034e486bf519739c95",
+                      "size":  83986
                   },
                   {
                       "path":  "integrations/capcut_mate/README.md",
@@ -381,8 +381,8 @@
                   },
                   {
                       "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/pyJianYingDraft/jianying_controller.py",
-                      "sha256":  "8dd490fbf8f0e97a7284351289ec4526efb9a20023f2176971d1f3c7251e74ab",
-                      "size":  31447
+                      "sha256":  "208dfd4528a7b0986964e09fc1aeaf8c9e90164487fdf2789785a74bb9153aab",
+                      "size":  31773
                   },
                   {
                       "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/pyJianYingDraft/keyframe.py",
@@ -1111,8 +1111,8 @@
                   },
                   {
                       "path":  "meiao_runtime/capcut_draft_runtime.py",
-                      "sha256":  "5367e0c0b4a28318d8b634eebf2351567d906c01cb0f644ac5aba50407940f03",
-                      "size":  21592
+                      "sha256":  "2bdbf9f8ad83bfd41681897073eecb02bed289484bcd4e7a6e95fc24be53f664",
+                      "size":  22178
                   },
                   {
                       "path":  "meiao_runtime/capcut_file_runtime.py",
