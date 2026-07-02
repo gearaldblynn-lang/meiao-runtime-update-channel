@@ -1,6 +1,6 @@
 {
-    "version":  "20260701-smart-subtitle-export-fix",
-    "createdAt":  "2026-07-01T10:09:52.2328104Z",
+    "version":  "20260702-capcut-mate-5-9-smart-subtitle-adapter",
+    "createdAt":  "2026-07-02T05:51:21.0756016Z",
     "channel":  "git-update",
     "payloadMode":  "partial",
     "repository":  "https://github.com/gearaldblynn-lang/meiao-runtime-update-channel.git",
@@ -61,8 +61,8 @@
                              "integrations/capcut_mate/upstream/capcut-mate-main/db",
                              "integrations/capcut_mate/upstream/capcut-mate-main/temp"
                          ],
-    "fileCount":  262,
-    "payloadHash":  "3ac1fe2dc8f2ee17bb44d09cbc7033d0771e7328ab604fb985fbb4a18e005241",
+    "fileCount":  266,
+    "payloadHash":  "7a963a141a66fe1dd0ac4521037221ac2ec66b4abef01d8743b4b95241d9afe4",
     "files":  [
                   {
                       "path":  "backup-runtime-data.ps1",
@@ -381,8 +381,8 @@
                   },
                   {
                       "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/pyJianYingDraft/jianying_controller.py",
-                      "sha256":  "208dfd4528a7b0986964e09fc1aeaf8c9e90164487fdf2789785a74bb9153aab",
-                      "size":  31773
+                      "sha256":  "1b6701b6534fe083c246ccd13cbe16c5b2714acb1ead78534ab79adf67782d02",
+                      "size":  37099
                   },
                   {
                       "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/pyJianYingDraft/keyframe.py",
@@ -930,6 +930,11 @@
                       "size":  2829
                   },
                   {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/utils/deferred_delete.py",
+                      "sha256":  "c9d364c8c3e8af3b4f5ef52bdb57b140add107456f63efbef661ec4457a6c7bb",
+                      "size":  4125
+                  },
+                  {
                       "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/utils/download.py",
                       "sha256":  "d17c7eafda50d16ce6774fef15457480b9f31ba5792968de03e1de26e7602e9c",
                       "size":  34118
@@ -938,6 +943,11 @@
                       "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/utils/draft_cache.py",
                       "sha256":  "65d11f549019b1c2f3890008ea7de27f473f0811b10272927d312bd1a067de37",
                       "size":  836
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/utils/draft_cleanup.py",
+                      "sha256":  "d7027244194bca534d9cd35e103a21b231621b792759c6fbc50f814455de61b9",
+                      "size":  4834
                   },
                   {
                       "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/utils/draft_downloader.py",
@@ -953,6 +963,11 @@
                       "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/utils/helper.py",
                       "sha256":  "e563ff66ff1f38adf8c6db4afd3c0420765a1d5b9b6cd88dc9cedfc388c00a9a",
                       "size":  1296
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/utils/jianying_export_cleanup.py",
+                      "sha256":  "b6913f3d8fe1994cb3ec8135a37356514eeb20fe04c27cf30a2fc1128d48337d",
+                      "size":  7065
                   },
                   {
                       "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/utils/keyframe_value.py",
@@ -978,6 +993,11 @@
                       "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/utils/points.py",
                       "sha256":  "3484fda736177911cf46275212fd3e6b4ce49352c85d80fa124f1540b565a1f5",
                       "size":  6728
+                  },
+                  {
+                      "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/utils/storage_key.py",
+                      "sha256":  "4883e7c8c812d581be954535d6b1967c33ab6f3e935c98862462976e741129a5",
+                      "size":  665
                   },
                   {
                       "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/utils/storage_upload_retry.py",

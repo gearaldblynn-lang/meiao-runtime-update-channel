@@ -78,6 +78,25 @@ class JianyingController:
     """当app_status为pre_export时，app_sub_status表示导出过程中的子状态"""
     app_sub_status: Literal["none", "export_start", "exporting", "export_succeed"]
 
+    SUBTITLE_TOPBAR_ENTRY_CANDIDATES = [
+        "字幕",
+        "文本",
+        "Text",
+        "Caption",
+        "Captions",
+    ]
+    SUBTITLE_PANEL_ENTRY_CANDIDATES = [
+        "VETreeMainCellItem:识别字幕",
+        "VEFreeMainCellItem:识别字幕",
+        "识别字幕",
+        "自动字幕",
+        "智能字幕",
+        "智能识别字幕",
+        "字幕识别",
+        "Recognize subtitles",
+        "Auto captions",
+    ]
+
     def __init__(self):
         """初始化剪映控制器, 此时剪映应该处于目录页"""
         self.get_window()
@@ -199,6 +218,95 @@ class JianyingController:
                 return desc
         raise AutomationError(f"未找到任一控件：{candidates}")
 
+    def control_text_values(self, control) -> list[str]:
+        """Collect stable UIA text fields exposed by different Jianying builds."""
+        values: list[str] = []
+        for getter in (
+            lambda: control.GetPropertyValue(30159),
+            lambda: control.GetPropertyValue(30005),
+            lambda: control.Name,
+            lambda: control.ClassName,
+        ):
+            try:
+                value = str(getter() or "").strip()
+            except Exception:
+                value = ""
+            if value and value not in values:
+                values.append(value)
+        return values
+
+    def find_control_by_text(self, text: str, *, max_depth: int = 8, exact: bool = False, include_desktop: bool = False):
+        """Find by full description, name, or class text. Jianying 5.9 changes these fields between items."""
+        target = text.lower()
+
+        def walk(control, depth: int = 0):
+            if depth > max_depth:
+                return None
+            try:
+                for value in self.control_text_values(control):
+                    current = value.lower()
+                    if (current == target) if exact else (target in current):
+                        return control
+                child = control.GetFirstChildControl()
+                while child:
+                    found = walk(child, depth + 1)
+                    if found:
+                        return found
+                    child = child.GetNextSiblingControl()
+            except Exception:
+                return None
+            return None
+
+        found = walk(self.app)
+        if found or not include_desktop:
+            return found
+        return walk(uia.GetRootControl())
+
+    def click_control(self, control, *, wait: float = 1.0) -> None:
+        try:
+            control.Click(simulateMove=False)
+        except Exception:
+            rect = control.BoundingRectangle
+            pyautogui.click(x=(rect.left + rect.right) // 2, y=(rect.top + rect.bottom) // 2, button="left")
+        time.sleep(wait)
+
+    def click_text_if_visible(
+        self,
+        candidates: list[str],
+        *,
+        wait: float = 1.0,
+        include_desktop: bool = False,
+        max_depth: int = 8,
+    ) -> Optional[str]:
+        for text in candidates:
+            control = self.find_control_by_text(text, include_desktop=include_desktop, max_depth=max_depth)
+            if control:
+                self.click_control(control, wait=wait)
+                return text
+        return None
+
+    def dump_visible_control_descriptions(self, reason: str, *, max_depth: int = 7, limit: int = 120) -> list[str]:
+        """Log visible UIA text so unsupported Jianying UI changes can be adapted from real evidence."""
+        rows: list[str] = []
+
+        def walk(control, depth: int = 0) -> None:
+            if depth > max_depth or len(rows) >= limit:
+                return
+            try:
+                values = self.control_text_values(control)
+                if values:
+                    rows.append(" | ".join(values[:3]))
+                child = control.GetFirstChildControl()
+                while child:
+                    walk(child, depth + 1)
+                    child = child.GetNextSiblingControl()
+            except Exception:
+                return
+
+        walk(self.app)
+        logger.info("visible Jianying controls for %s: %s", reason, rows)
+        return rows
+
     def right_click_control(self, control, *, wait: float = 0.8) -> None:
         """右键点击控件中心点。"""
         rect = control.BoundingRectangle
@@ -270,13 +378,40 @@ class JianyingController:
         """通过“字幕 -> 识别字幕”触发字幕识别。
 
         剪映 5.9 的字幕入口在顶部功能栏的“字幕”菜单下，不在“智能识别”树节点里。
-        顶部菜单本身不稳定暴露 description，因此用窗口相对坐标点击，再用 UIA 找左侧树节点。
+        先走 UIA 文本/description，顶部栏不暴露文本时再用窗口比例点做兜底探测，避免依赖单个固定点位。
         """
-        rect = self.app.BoundingRectangle
-        pyautogui.click(x=rect.left + 337, y=rect.top + 53, button="left")
-        time.sleep(0.8)
-        self.click_desc("VETreeMainCellItem:识别字幕", wait=1.2)
+        self.trigger_subtitle_recognition_from_toolbar()
+        self.click_subtitle_panel_entry()
         self.click_subtitle_recognition_start_button()
+
+    def trigger_subtitle_recognition_from_toolbar(self) -> None:
+        clicked = self.click_text_if_visible(self.SUBTITLE_TOPBAR_ENTRY_CANDIDATES, wait=0.8, max_depth=6)
+        if clicked:
+            logger.info("subtitle toolbar entry clicked by UIA text: %s", clicked)
+            return
+
+        rect = self.app.BoundingRectangle
+        width = max(1, rect.right - rect.left)
+        height = max(1, rect.bottom - rect.top)
+        y = rect.top + min(max(int(height * 0.05), 38), 72)
+        for ratio in (0.14, 0.18, 0.22, 0.26, 0.30, 0.34, 0.38, 0.42):
+            x = rect.left + int(width * ratio)
+            logger.info("probe subtitle toolbar entry by relative point: %.2f at (%s, %s)", ratio, x, y)
+            pyautogui.click(x=x, y=y, button="left")
+            time.sleep(0.45)
+            if self.find_control_by_text("识别字幕", max_depth=8) or self.find_control_by_text("VEFreeMainCellItem", max_depth=8):
+                return
+
+        self.dump_visible_control_descriptions("subtitle-toolbar-entry-missing")
+        raise AutomationError("未找到剪映字幕入口")
+
+    def click_subtitle_panel_entry(self) -> str:
+        clicked = self.click_text_if_visible(self.SUBTITLE_PANEL_ENTRY_CANDIDATES, wait=1.2, max_depth=9)
+        if clicked:
+            logger.info("subtitle recognition panel entry clicked: %s", clicked)
+            return clicked
+        self.dump_visible_control_descriptions("subtitle-panel-entry-missing")
+        raise AutomationError(f"未找到控件：{self.SUBTITLE_PANEL_ENTRY_CANDIDATES[0]}")
 
     def click_subtitle_recognition_start_button(self) -> None:
         """点击识别字幕面板里的“开始识别”按钮。"""
