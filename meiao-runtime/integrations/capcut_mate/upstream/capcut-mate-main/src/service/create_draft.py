@@ -9,6 +9,21 @@ import os
 import shutil
 
 
+JIANYING_59_COMPATIBLE_TEMPLATE = "default"
+JIANYING_59_COMPATIBLE_NEW_VERSION = "52.0.0"
+JIANYING_59_APP_VERSION = "5.9.0"
+
+
+def normalize_jianying_59_metadata(script: draft.ScriptFile) -> None:
+    """Keep generated drafts within the Jianying 5.9-compatible metadata range."""
+    script.content["new_version"] = JIANYING_59_COMPATIBLE_NEW_VERSION
+    for platform_key in ("platform", "last_modified_platform"):
+        platform_info = script.content.get(platform_key)
+        if isinstance(platform_info, dict):
+            platform_info["app_version"] = JIANYING_59_APP_VERSION
+            platform_info["os"] = "windows"
+
+
 def create_draft(width: int, height: int) -> str:
     """
     基于模板创建剪映草稿的业务逻辑
@@ -33,6 +48,13 @@ def create_draft(width: int, height: int) -> str:
     try:
         # 复制模板到新草稿目录
         template_name = getattr(config, "JY_DRAFT_TEMPLATE", "default") or "default"
+        if template_name != JIANYING_59_COMPATIBLE_TEMPLATE:
+            logger.warning(
+                "JY_DRAFT_TEMPLATE=%s is not Jianying 5.9-compatible; using %s",
+                template_name,
+                JIANYING_59_COMPATIBLE_TEMPLATE,
+            )
+            template_name = JIANYING_59_COMPATIBLE_TEMPLATE
         template_path = os.path.join(config.TEMPLATE_DIR, template_name)
         draft_path = os.path.join(config.DRAFT_DIR, draft_id)
         if os.path.exists(draft_path): shutil.rmtree(draft_path)
@@ -48,11 +70,7 @@ def create_draft(width: int, height: int) -> str:
         script.dual_file_compatibility = True
         script.width, script.height = width, height
         script.content["canvas_config"]["width"], script.content["canvas_config"]["height"] = width, height
-        for platform_key in ("platform", "last_modified_platform"):
-            platform_info = script.content.get(platform_key)
-            if isinstance(platform_info, dict):
-                platform_info["app_version"] = "5.9.0"
-                platform_info["os"] = "windows"
+        normalize_jianying_59_metadata(script)
         
         # 保存修改后的草稿（会自动同步到两个文件）
         script.save_path = draft_content_path

@@ -1,6 +1,6 @@
 {
-    "version":  "20260702-capcut-mate-5-9-smart-subtitle-adapter",
-    "createdAt":  "2026-07-02T05:51:21.0756016Z",
+    "version":  "20260702-jianying-5-9-audio-selected-subtitles",
+    "createdAt":  "2026-07-02T06:48:43.3339702Z",
     "channel":  "git-update",
     "payloadMode":  "partial",
     "repository":  "https://github.com/gearaldblynn-lang/meiao-runtime-update-channel.git",
@@ -62,7 +62,7 @@
                              "integrations/capcut_mate/upstream/capcut-mate-main/temp"
                          ],
     "fileCount":  266,
-    "payloadHash":  "7a963a141a66fe1dd0ac4521037221ac2ec66b4abef01d8743b4b95241d9afe4",
+    "payloadHash":  "a98a26dff1dd44920aa898e756d777e374c37568884486ab7f2db75a763836fe",
     "files":  [
                   {
                       "path":  "backup-runtime-data.ps1",
@@ -381,8 +381,8 @@
                   },
                   {
                       "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/pyJianYingDraft/jianying_controller.py",
-                      "sha256":  "1b6701b6534fe083c246ccd13cbe16c5b2714acb1ead78534ab79adf67782d02",
-                      "size":  37099
+                      "sha256":  "08196d5efb90bb811577741d7e7d9f45793eeccf452e19af7c7e9cbdf82c1966",
+                      "size":  39169
                   },
                   {
                       "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/pyJianYingDraft/keyframe.py",
@@ -801,8 +801,8 @@
                   },
                   {
                       "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/service/create_draft.py",
-                      "sha256":  "785fabf6147902bf60df7b5829d1a2ef33ad4b7f4628a9481e12e9999e677feb",
-                      "size":  2905
+                      "sha256":  "15b4c0c4bace7cd69528562fb43f94f106813676bb3e196f94343b2109660530",
+                      "size":  3624
                   },
                   {
                       "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/service/easy_create_material.py",

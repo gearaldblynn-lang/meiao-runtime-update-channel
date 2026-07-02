@@ -81,7 +81,6 @@ class JianyingController:
     SUBTITLE_TOPBAR_ENTRY_CANDIDATES = [
         "字幕",
         "文本",
-        "Text",
         "Caption",
         "Captions",
     ]
@@ -95,6 +94,15 @@ class JianyingController:
         "字幕识别",
         "Recognize subtitles",
         "Auto captions",
+    ]
+    AUDIO_TRACK_SELECTION_CANDIDATES = [
+        "MTLSAudioP:",
+        "MTLSAudio:",
+        "MTLSAudio",
+        ".wav",
+        ".mp3",
+        ".m4a",
+        ".aac",
     ]
 
     def __init__(self):
@@ -384,26 +392,65 @@ class JianyingController:
         self.click_subtitle_panel_entry()
         self.click_subtitle_recognition_start_button()
 
-    def trigger_subtitle_recognition_from_toolbar(self) -> None:
-        clicked = self.click_text_if_visible(self.SUBTITLE_TOPBAR_ENTRY_CANDIDATES, wait=0.8, max_depth=6)
+    def select_audio_track_for_subtitle_recognition(self) -> None:
+        """Select the narration audio clip before asking Jianying to recognize subtitles."""
+        clicked = self.click_text_if_visible(
+            self.AUDIO_TRACK_SELECTION_CANDIDATES,
+            wait=0.8,
+            max_depth=12,
+        )
         if clicked:
-            logger.info("subtitle toolbar entry clicked by UIA text: %s", clicked)
+            logger.info("audio track selected before subtitle recognition by UIA text: %s", clicked)
             return
 
         rect = self.app.BoundingRectangle
         width = max(1, rect.right - rect.left)
         height = max(1, rect.bottom - rect.top)
-        y = rect.top + min(max(int(height * 0.05), 38), 72)
-        for ratio in (0.14, 0.18, 0.22, 0.26, 0.30, 0.34, 0.38, 0.42):
-            x = rect.left + int(width * ratio)
-            logger.info("probe subtitle toolbar entry by relative point: %.2f at (%s, %s)", ratio, x, y)
+        # Jianying 5.9 does not consistently expose audio clips to UIA. These points target
+        # the visible narration-audio lane, after the playhead and away from track controls.
+        for x_ratio, y_ratio in ((0.28, 0.86), (0.38, 0.86), (0.50, 0.86), (0.28, 0.83), (0.38, 0.83)):
+            x = rect.left + int(width * x_ratio)
+            y = rect.top + int(height * y_ratio)
+            logger.info("probe-select audio track before subtitle recognition: %.2f %.2f at (%s, %s)", x_ratio, y_ratio, x, y)
             pyautogui.click(x=x, y=y, button="left")
             time.sleep(0.45)
-            if self.find_control_by_text("识别字幕", max_depth=8) or self.find_control_by_text("VEFreeMainCellItem", max_depth=8):
-                return
+            return
+
+        self.dump_visible_control_descriptions("audio-track-selection-missing", max_depth=9)
+        raise AutomationError("未找到音频轨道，已停止智能字幕识别")
+
+    def trigger_subtitle_recognition_from_toolbar(self) -> None:
+        clicked = self.click_text_if_visible(self.SUBTITLE_TOPBAR_ENTRY_CANDIDATES, wait=0.8, max_depth=6)
+        if clicked and self.has_subtitle_panel_entry():
+            logger.info("subtitle toolbar entry clicked by UIA text: %s", clicked)
+            return
+        if clicked:
+            logger.info("subtitle toolbar UIA candidate did not open subtitle panel: %s", clicked)
+
+        rect = self.app.BoundingRectangle
+        width = max(1, rect.right - rect.left)
+        height = max(1, rect.bottom - rect.top)
+        y_candidates = [
+            rect.top + min(max(int(height * 0.05), 38), 72),
+            rect.top + min(max(int(height * 0.065), 48), 86),
+        ]
+        for ratio in (0.16, 0.18, 0.19, 0.197, 0.205, 0.215, 0.225, 0.24, 0.26):
+            for y in y_candidates:
+                x = rect.left + int(width * ratio)
+                logger.info("probe subtitle toolbar entry by relative point: %.3f at (%s, %s)", ratio, x, y)
+                pyautogui.click(x=x, y=y, button="left")
+                time.sleep(0.45)
+                if self.has_subtitle_panel_entry():
+                    return
 
         self.dump_visible_control_descriptions("subtitle-toolbar-entry-missing")
         raise AutomationError("未找到剪映字幕入口")
+
+    def has_subtitle_panel_entry(self) -> bool:
+        for candidate in self.SUBTITLE_PANEL_ENTRY_CANDIDATES:
+            if self.find_control_by_text(candidate, max_depth=9):
+                return True
+        return False
 
     def click_subtitle_panel_entry(self) -> str:
         clicked = self.click_text_if_visible(self.SUBTITLE_PANEL_ENTRY_CANDIDATES, wait=1.2, max_depth=9)
@@ -497,6 +544,7 @@ class JianyingController:
         self.__ensure_window_focus()
         self.find_and_click_draft(draft_name)
         self.__ensure_window_focus()
+        self.select_audio_track_for_subtitle_recognition()
 
         try:
             self.trigger_subtitle_recognition_from_sidebar()
