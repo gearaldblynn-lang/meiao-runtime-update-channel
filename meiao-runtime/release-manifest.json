@@ -1,6 +1,6 @@
 {
-    "version":  "20260702-jianying-5-9-audio-selected-subtitles",
-    "createdAt":  "2026-07-02T06:48:43.3339702Z",
+    "version":  "20260702-jianying-no-coordinate-subtitle-safety",
+    "createdAt":  "2026-07-02T08:00:43.1659856Z",
     "channel":  "git-update",
     "payloadMode":  "partial",
     "repository":  "https://github.com/gearaldblynn-lang/meiao-runtime-update-channel.git",
@@ -62,7 +62,7 @@
                              "integrations/capcut_mate/upstream/capcut-mate-main/temp"
                          ],
     "fileCount":  266,
-    "payloadHash":  "a98a26dff1dd44920aa898e756d777e374c37568884486ab7f2db75a763836fe",
+    "payloadHash":  "0b235af2dcab3ba0bb22ac694ef2e8075e6a1d31c537ae1bb15725f619dc6e1a",
     "files":  [
                   {
                       "path":  "backup-runtime-data.ps1",
@@ -381,8 +381,8 @@
                   },
                   {
                       "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/pyJianYingDraft/jianying_controller.py",
-                      "sha256":  "08196d5efb90bb811577741d7e7d9f45793eeccf452e19af7c7e9cbdf82c1966",
-                      "size":  39169
+                      "sha256":  "76aa530d4443cfd9505d97a827d937dbf97174981230d5adccc73c40e9701601",
+                      "size":  35256
                   },
                   {
                       "path":  "integrations/capcut_mate/upstream/capcut-mate-main/src/pyJianYingDraft/keyframe.py",

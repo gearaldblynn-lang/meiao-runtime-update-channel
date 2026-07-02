@@ -80,7 +80,6 @@ class JianyingController:
 
     SUBTITLE_TOPBAR_ENTRY_CANDIDATES = [
         "字幕",
-        "文本",
         "Caption",
         "Captions",
     ]
@@ -212,7 +211,15 @@ class JianyingController:
             pyautogui.click(x=(rect.left + rect.right) // 2, y=(rect.top + rect.bottom) // 2, button="left")
         time.sleep(wait)
 
-    def click_any_desc(self, candidates: list[str], *, wait: float = 1.0, include_desktop: bool = False, max_depth: int = 8) -> str:
+    def click_any_desc(
+        self,
+        candidates: list[str],
+        *,
+        wait: float = 1.0,
+        include_desktop: bool = False,
+        max_depth: int = 8,
+        allow_bounding_fallback: bool = True,
+    ) -> str:
         """点击任一匹配 description 的控件，返回命中的候选词。"""
         for desc in candidates:
             control = self.find_control_by_desc(desc, include_desktop=include_desktop, max_depth=max_depth)
@@ -220,6 +227,8 @@ class JianyingController:
                 try:
                     control.Click(simulateMove=False)
                 except Exception:
+                    if not allow_bounding_fallback:
+                        raise AutomationError(f"控件不支持 UIA 点击：{desc}")
                     rect = control.BoundingRectangle
                     pyautogui.click(x=(rect.left + rect.right) // 2, y=(rect.top + rect.bottom) // 2, button="left")
                 time.sleep(wait)
@@ -270,10 +279,12 @@ class JianyingController:
             return found
         return walk(uia.GetRootControl())
 
-    def click_control(self, control, *, wait: float = 1.0) -> None:
+    def click_control(self, control, *, wait: float = 1.0, allow_bounding_fallback: bool = True) -> None:
         try:
             control.Click(simulateMove=False)
         except Exception:
+            if not allow_bounding_fallback:
+                raise
             rect = control.BoundingRectangle
             pyautogui.click(x=(rect.left + rect.right) // 2, y=(rect.top + rect.bottom) // 2, button="left")
         time.sleep(wait)
@@ -285,11 +296,12 @@ class JianyingController:
         wait: float = 1.0,
         include_desktop: bool = False,
         max_depth: int = 8,
+        allow_bounding_fallback: bool = True,
     ) -> Optional[str]:
         for text in candidates:
             control = self.find_control_by_text(text, include_desktop=include_desktop, max_depth=max_depth)
             if control:
-                self.click_control(control, wait=wait)
+                self.click_control(control, wait=wait, allow_bounding_fallback=allow_bounding_fallback)
                 return text
         return None
 
@@ -349,7 +361,13 @@ class JianyingController:
                 continue
             self.right_click_control(control)
             try:
-                clicked = self.click_any_desc(menu_candidates, wait=1.0, include_desktop=True, max_depth=4)
+                clicked = self.click_any_desc(
+                    menu_candidates,
+                    wait=1.0,
+                    include_desktop=True,
+                    max_depth=4,
+                    allow_bounding_fallback=False,
+                )
                 logger.info("recognize subtitles context menu clicked by control %s: %s", desc, clicked)
                 self.click_subtitle_recognition_start_button()
                 return True
@@ -357,36 +375,14 @@ class JianyingController:
                 pyautogui.press("esc")
                 time.sleep(0.3)
 
-        # 兜底：剪映时间线里音频轨道通常在窗口下方，右键若干个常见位置。
-        rect = self.app.BoundingRectangle
-        width = max(1, rect.right - rect.left)
-        height = max(1, rect.bottom - rect.top)
-        fallback_points = [
-            (rect.left + int(width * 0.38), rect.bottom - int(height * 0.15)),
-            (rect.left + int(width * 0.48), rect.bottom - int(height * 0.15)),
-            (rect.left + int(width * 0.38), rect.bottom - int(height * 0.20)),
-            (rect.left + int(width * 0.28), rect.bottom - int(height * 0.15)),
-        ]
-        for x, y in fallback_points:
-            logger.info("fallback right click audio timeline point: (%s, %s)", x, y)
-            pyautogui.click(x=x, y=y, button="right")
-            time.sleep(0.8)
-            try:
-                clicked = self.click_any_desc(menu_candidates, wait=1.0, include_desktop=True, max_depth=4)
-                logger.info("recognize subtitles context menu clicked by fallback point: %s", clicked)
-                self.click_subtitle_recognition_start_button()
-                return True
-            except AutomationError:
-                pyautogui.press("esc")
-                time.sleep(0.3)
-
+        self.dump_visible_control_descriptions("audio-context-menu-entry-missing", max_depth=9)
         return False
 
     def trigger_subtitle_recognition_from_sidebar(self) -> None:
         """通过“字幕 -> 识别字幕”触发字幕识别。
 
         剪映 5.9 的字幕入口在顶部功能栏的“字幕”菜单下，不在“智能识别”树节点里。
-        先走 UIA 文本/description，顶部栏不暴露文本时再用窗口比例点做兜底探测，避免依赖单个固定点位。
+        这里只通过 UIA 暴露的真实控件触发；找不到入口时停止并记录可见控件。
         """
         self.trigger_subtitle_recognition_from_toolbar()
         self.click_subtitle_panel_entry()
@@ -398,53 +394,35 @@ class JianyingController:
             self.AUDIO_TRACK_SELECTION_CANDIDATES,
             wait=0.8,
             max_depth=12,
+            allow_bounding_fallback=False,
         )
         if clicked:
             logger.info("audio track selected before subtitle recognition by UIA text: %s", clicked)
             return
 
-        rect = self.app.BoundingRectangle
-        width = max(1, rect.right - rect.left)
-        height = max(1, rect.bottom - rect.top)
-        # Jianying 5.9 does not consistently expose audio clips to UIA. These points target
-        # the visible narration-audio lane, after the playhead and away from track controls.
-        for x_ratio, y_ratio in ((0.28, 0.86), (0.38, 0.86), (0.50, 0.86), (0.28, 0.83), (0.38, 0.83)):
-            x = rect.left + int(width * x_ratio)
-            y = rect.top + int(height * y_ratio)
-            logger.info("probe-select audio track before subtitle recognition: %.2f %.2f at (%s, %s)", x_ratio, y_ratio, x, y)
-            pyautogui.click(x=x, y=y, button="left")
-            time.sleep(0.45)
-            return
-
         self.dump_visible_control_descriptions("audio-track-selection-missing", max_depth=9)
-        raise AutomationError("未找到音频轨道，已停止智能字幕识别")
+        raise AutomationError("剪映当前界面未向 UI 自动化暴露音频轨道控件，已停止智能字幕识别，避免坐标误点")
+
+    def trigger_subtitle_recognition_from_selected_audio_panel(self) -> None:
+        """After selecting the audio clip, trigger recognition from the exposed panel entry."""
+        self.click_subtitle_panel_entry()
+        self.click_subtitle_recognition_start_button()
 
     def trigger_subtitle_recognition_from_toolbar(self) -> None:
-        clicked = self.click_text_if_visible(self.SUBTITLE_TOPBAR_ENTRY_CANDIDATES, wait=0.8, max_depth=6)
+        clicked = self.click_text_if_visible(
+            self.SUBTITLE_TOPBAR_ENTRY_CANDIDATES,
+            wait=0.8,
+            max_depth=6,
+            allow_bounding_fallback=False,
+        )
         if clicked and self.has_subtitle_panel_entry():
             logger.info("subtitle toolbar entry clicked by UIA text: %s", clicked)
             return
         if clicked:
             logger.info("subtitle toolbar UIA candidate did not open subtitle panel: %s", clicked)
 
-        rect = self.app.BoundingRectangle
-        width = max(1, rect.right - rect.left)
-        height = max(1, rect.bottom - rect.top)
-        y_candidates = [
-            rect.top + min(max(int(height * 0.05), 38), 72),
-            rect.top + min(max(int(height * 0.065), 48), 86),
-        ]
-        for ratio in (0.16, 0.18, 0.19, 0.197, 0.205, 0.215, 0.225, 0.24, 0.26):
-            for y in y_candidates:
-                x = rect.left + int(width * ratio)
-                logger.info("probe subtitle toolbar entry by relative point: %.3f at (%s, %s)", ratio, x, y)
-                pyautogui.click(x=x, y=y, button="left")
-                time.sleep(0.45)
-                if self.has_subtitle_panel_entry():
-                    return
-
         self.dump_visible_control_descriptions("subtitle-toolbar-entry-missing")
-        raise AutomationError("未找到剪映字幕入口")
+        raise AutomationError("未找到剪映字幕入口：当前版本未向 UI 自动化暴露顶部“字幕”控件")
 
     def has_subtitle_panel_entry(self) -> bool:
         for candidate in self.SUBTITLE_PANEL_ENTRY_CANDIDATES:
@@ -453,7 +431,12 @@ class JianyingController:
         return False
 
     def click_subtitle_panel_entry(self) -> str:
-        clicked = self.click_text_if_visible(self.SUBTITLE_PANEL_ENTRY_CANDIDATES, wait=1.2, max_depth=9)
+        clicked = self.click_text_if_visible(
+            self.SUBTITLE_PANEL_ENTRY_CANDIDATES,
+            wait=1.2,
+            max_depth=9,
+            allow_bounding_fallback=False,
+        )
         if clicked:
             logger.info("subtitle recognition panel entry clicked: %s", clicked)
             return clicked
@@ -462,76 +445,18 @@ class JianyingController:
 
     def click_subtitle_recognition_start_button(self) -> None:
         """点击识别字幕面板里的“开始识别”按钮。"""
-        rect = self.app.BoundingRectangle
-        try:
-            clicked = self.click_any_desc([
-                "开始识别",
-                "开始匹配",
-                "SmartCaption",
-                "Recognize",
-                "Start",
-                "Confirm",
-                "OK",
-            ], wait=1.0, include_desktop=True, max_depth=5)
-            logger.info("recognize subtitle start button clicked: %s", clicked)
-        except AutomationError:
-            # 5.9 中“开始识别”按钮经常不暴露描述，按识别字幕面板中的蓝色主按钮兜底。
-            button = self.find_blue_button_in_region(
-                rect.left + 80,
-                rect.top + 180,
-                rect.left + 840,
-                rect.top + 600,
-            )
-            if button:
-                x, y = button
-            else:
-                x = rect.left + 500
-                y = rect.top + 435
-            logger.warning("recognize subtitle start button not exposed, fallback click at (%s, %s)", x, y)
-            pyautogui.click(x=x, y=y, button="left")
-            time.sleep(1)
-
-    def find_blue_button_in_region(self, left: int, top: int, right: int, bottom: int) -> Optional[tuple[int, int]]:
-        """在指定区域中找剪映蓝色主按钮中心点。"""
-        try:
-            image = pyautogui.screenshot()
-            pixels = image.load()
-            step = 2
-            visited: set[tuple[int, int]] = set()
-            best: tuple[int, int, int, int, int] | None = None
-
-            def is_primary_blue(x: int, y: int) -> bool:
-                red, green, blue = pixels[x, y][:3]
-                return blue > 140 and green > 80 and red < 130 and blue - red > 45
-
-            for y in range(max(0, top), min(image.height, bottom), step):
-                for x in range(max(0, left), min(image.width, right), step):
-                    if (x, y) in visited or not is_primary_blue(x, y):
-                        continue
-                    queue = [(x, y)]
-                    visited.add((x, y))
-                    xs: list[int] = []
-                    ys: list[int] = []
-                    while queue:
-                        cx, cy = queue.pop()
-                        xs.append(cx)
-                        ys.append(cy)
-                        for nx, ny in ((cx + step, cy), (cx - step, cy), (cx, cy + step), (cx, cy - step)):
-                            if nx < left or nx >= right or ny < top or ny >= bottom or (nx, ny) in visited:
-                                continue
-                            if is_primary_blue(nx, ny):
-                                visited.add((nx, ny))
-                                queue.append((nx, ny))
-                    if len(xs) >= 20:
-                        box = (min(xs), min(ys), max(xs), max(ys), len(xs))
-                        if best is None or box[4] > best[4]:
-                            best = box
-            if not best:
-                return None
-            return ((best[0] + best[2]) // 2, (best[1] + best[3]) // 2)
-        except Exception as exc:
-            logger.warning("failed to locate blue subtitle button: %s", exc)
-            return None
+        clicked = self.click_any_desc([
+            "开始字幕识别",
+            "开始识别",
+            "开始匹配",
+            "pc_caption_menu_recognize_start",
+            "SmartCaption",
+            "Recognize",
+            "Start",
+            "Confirm",
+            "OK",
+        ], wait=1.0, include_desktop=True, max_depth=6, allow_bounding_fallback=False)
+        logger.info("recognize subtitle start button clicked: %s", clicked)
 
     def recognize_subtitles(self, draft_name: str, timeout: float = 180) -> None:
         """在剪映 5.9 中打开草稿并触发“智能识别 -> 识别字幕”。
@@ -546,12 +471,17 @@ class JianyingController:
         self.__ensure_window_focus()
         self.select_audio_track_for_subtitle_recognition()
 
+        triggered = False
         try:
-            self.trigger_subtitle_recognition_from_sidebar()
-        except AutomationError:
-            logger.info("sidebar recognition failed, fallback to audio context menu recognition")
-            if not self.try_context_menu_recognize_subtitles():
-                raise
+            self.trigger_subtitle_recognition_from_selected_audio_panel()
+            triggered = True
+        except AutomationError as panel_error:
+            logger.info("selected-audio recognition panel failed: %s", panel_error)
+            triggered = self.try_context_menu_recognize_subtitles()
+            if not triggered:
+                logger.info("audio context menu recognition failed, try subtitle toolbar UIA entry")
+                self.trigger_subtitle_recognition_from_sidebar()
+                triggered = True
 
         self.wait_for_subtitle_recognition(timeout)
         logger.info("recognize subtitles finished for draft: %s", draft_name)
